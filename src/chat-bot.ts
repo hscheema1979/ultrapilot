@@ -5,8 +5,16 @@
  * Allows users to interact with agents through Google Chat interface.
  */
 
-import { google } from 'googleapis';
 import { UltraXGateway, UltraXMessage, UltraXResponse } from './gateway.js';
+
+// Try to import googleapis, but don't fail if not available
+let google: any;
+try {
+  const googleapisModule = await import('googleapis');
+  google = googleapisModule.google;
+} catch (error) {
+  console.warn('googleapis not installed. Google Chat features will be disabled.');
+}
 
 export interface GoogleChatConfig {
   projectId: string;
@@ -68,6 +76,11 @@ export class UltraXGoogleChatBot {
    * Initialize Google Chat API client
    */
   private async initializeChatAPI(): Promise<void> {
+    if (!google) {
+      console.warn('Google Chat API not available');
+      return;
+    }
+
     const auth = new google.auth.GoogleAuth({
       keyFile: this.config.credentialsPath,
       scopes: ['https://www.googleapis.com/auth/chat.bot']

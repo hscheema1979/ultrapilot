@@ -292,6 +292,7 @@ export class UltraXGateway {
       case 'hud':
         return {
           message: this.generateHUD(session),
+          hud: this.generateHUD(session),
           status: 'paused'
         };
 
@@ -329,11 +330,11 @@ export class UltraXGateway {
       response.status = result.status as any;
     }
 
-    // Add HUD for chat interfaces
-    if (message.interface === 'chat') {
-      const session = this.sessions.get(message.sessionId);
+    // Add HUD if result includes it (from hud command) or for chat interfaces
+    const session = this.sessions.get(message.sessionId);
+    if (result.hud || message.interface === 'chat') {
       if (session) {
-        response.hud = this.generateHUD(session);
+        response.hud = result.hud || this.generateHUD(session);
       }
     }
 
