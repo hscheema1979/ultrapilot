@@ -6,6 +6,17 @@ Ultrapilot is a unified development workflow plugin that combines the best of:
 - **OMC** (oh-my-claudecode) - Agent orchestration and state management
 - **Superpowers** - Phased development workflows
 - **Wshobson's Agents** - Parallel execution with file ownership
+- **Relay Web UI** - Production-ready web interface
+- **Google Chat Integration** - Secondary interface for remote collaboration
+
+## All-in-One Package
+
+One plugin deployment gives you:
+- ✅ **29 Specialist Agents** for autonomous development
+- ✅ **Relay Web UI** (port 3000) - Full-featured web interface
+- ✅ **UltraX Gateway** (port 3001) - API server for integrations
+- ✅ **Google Chat Bot** - Secondary interface
+- ✅ **Unified Management** - Single entry point to control everything
 
 ## The One Command
 
@@ -25,12 +36,21 @@ That's it. One command handles everything:
 ## Installation
 
 ```bash
-# Via npm (when published)
-npm install -g ultrapilot
+# Clone the repository
+cd ~/.claude/plugins/
+git clone https://github.com/hscheema1979/ultrapilot.git
 
-# Or use as a local plugin
-cp -r ~/.claude/plugins/ultrapilot ~/.claude/plugins/cache/ultrapilot
+# Run the installer
+cd ultrapilot
+node scripts/install.mjs
 ```
+
+The installer will:
+1. Copy skills to `~/.claude/skills/`
+2. Set up the HUD CLI
+3. Configure `settings.json`
+4. Create `.ultra/` directory structure
+5. Prepare unified startup scripts
 
 ## Configuration
 
@@ -51,17 +71,82 @@ Add to `~/.claude/settings.json`:
 ## Plugin Structure
 
 ```
-ultrapilot/
+~/.claude/plugins/ultrapilot/
 ├── src/
-│   ├── agents.ts      # Agent catalog (20+ specialist agents)
+│   ├── agents.ts      # Agent catalog (29 specialist agents)
 │   ├── state.ts       # State management system
 │   ├── hud.ts         # HUD renderer
+│   ├── server.ts      # UltraX Gateway API server
 │   └── index.ts       # Main exports
 ├── cli/
 │   └── hud.mjs        # Statusline CLI entry point
+├── scripts/
+│   └── install.mjs    # Installation script
 ├── skills/            # Skill definitions (copied to ~/.claude/skills/)
+├── start.sh           # Unified startup script (Relay + Gateway)
+├── status.sh          # Check status of all services
+├── stop.sh            # Stop services gracefully
+├── start.mjs          # Node.js version of startup
 └── package.json
 ```
+
+## Architecture: Optimized Integration
+
+### Key Design Principle: **No Code Duplication**
+
+Ultrapilot uses a **coordinated architecture** rather than duplicating code:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Ultrapilot Plugin                         │
+│                  (~/.claude/plugins/ultrapilot/)             │
+│                                                               │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │  Ultrapilot Core                                     │   │
+│  │  • 29 specialist agents                              │   │
+│  │  • State management                                  │   │
+│  │  • HUD system                                        │   │
+│  │  • Skills coordination                               │   │
+│  └──────────────────────────────────────────────────────┘   │
+│                                                               │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │  UltraX Gateway (Port 3001)                          │   │
+│  │  • REST API server                                   │   │
+│  │  • Google Chat webhook handler                       │   │
+│  │  • Relay integration endpoints                       │   │
+│  │  • Session management                               │   │
+│  └──────────────────────────────────────────────────────┘   │
+│                                                               │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │  Unified Startup Scripts                             │   │
+│  │  • start.sh - Coordinate both services               │   │
+│  │  • status.sh - Monitor all services                  │   │
+│  │  • stop.sh - Graceful shutdown                       │   │
+│  └──────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            │ References (not copies!)
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Relay Web UI (Separate Project)                 │
+│           (~/.claude-web-interfaces/claude-relay/)           │
+│                                                               │
+│  • Full-featured web interface                               │
+│  • Real-time agent monitoring                                │
+│  • Session management                                        │
+│  • File browser                                              │
+│  • Terminal access                                           │
+│  • Runs on port 3000                                         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Why This Architecture?
+
+1. **No Duplication**: Relay stays in its original location, maintained as a separate project
+2. **Optimal Locations**: Each component lives where it's best maintained
+3. **Coordination**: Startup scripts coordinate both services without copying code
+4. **Single Entry Point**: `./start.sh` launches everything together
+5. **Independent Updates**: Update Relay independently without affecting Ultrapilot
 
 ## Agent Catalog
 
@@ -101,6 +186,8 @@ ultrapilot/
 
 ## Available Commands
 
+### Development Commands
+
 | Command | Description |
 |---------|-------------|
 | `/ultrapilot <task>` | Main command - autonomous development |
@@ -109,6 +196,24 @@ ultrapilot/
 | `/ultra-review <code>` | Multi-dimensional review |
 | `/ultra-hud` | Configure HUD |
 | `/ultra-cancel` | Cancel active mode |
+
+### Service Management (From Plugin Directory)
+
+| Command | Description |
+|---------|-------------|
+| `./start.sh` | Start all services (Relay + Gateway) |
+| `./status.sh` | Check status of all services |
+| `./stop.sh` | Stop services gracefully |
+| `node start.mjs` | Node.js version of startup |
+
+### Access Points
+
+| Service | Local URL | Tailscale URL |
+|---------|-----------|---------------|
+| Relay Web UI | http://localhost:3000 | http://vps5:3000 |
+| UltraX Gateway | http://localhost:3001 | http://vps5:3001 |
+| API Docs | http://localhost:3001 | http://vps5:3001 |
+| Health Check | http://localhost:3001/health | http://vps5:3001/health |
 
 ## State Management
 
@@ -178,6 +283,13 @@ Parallel reviewers:
 `~/.claude/settings.json`:
 ```json
 {
+  "enabledPlugins": {
+    "ultrapilot@local": true
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "node ~/.claude/plugins/ultrapilot/cli/hud.mjs"
+  },
   "ultra": {
     "autopilot": {
       "maxIterations": 10,
@@ -194,6 +306,130 @@ Parallel reviewers:
 }
 ```
 
+## Quick Start
+
+### 1. Start All Services
+
+```bash
+cd ~/.claude/plugins/ultrapilot
+./start.sh
+```
+
+Output:
+```
+╔═══════════════════════════════════════════════════════════════╗
+║           🦎 ULTRAX - All-in-One Plugin for Claude Code          ║
+║                                                                   ║
+║  One plugin. Zero setup. Everything you need.                 ║
+╚═══════════════════════════════════════════════════════════════╝
+
+🚀 Starting Relay Web UI (port 3000)...
+✅ Relay running on http://localhost:3000
+
+🚀 Starting UltraX Gateway (port 3001)...
+✅ Gateway running on http://localhost:3001
+
+✨ ALL SERVICES RUNNING
+```
+
+### 2. Check Status
+
+```bash
+./status.sh
+```
+
+### 3. Access Interfaces
+
+- **Web UI**: Open http://localhost:3000 (or http://vps5:3000 via Tailscale)
+- **API Gateway**: http://localhost:3001 (or http://vps5:3001 via Tailscale)
+- **Google Chat**: Configure webhook at http://localhost:3001/webhook/google-chat
+
+### 4. Stop Services
+
+```bash
+./stop.sh
+```
+
+## VPS Deployment
+
+### On Your VPS (e.g., vps5):
+
+1. **Clone and Install:**
+```bash
+cd ~/.claude/plugins/
+git clone https://github.com/hscheema1979/ultrapilot.git
+cd ultrapilot
+node scripts/install.mjs
+```
+
+2. **Enable Tailscale (for remote access):**
+```bash
+sudo tailscale up
+# Note your hostname (e.g., vps5)
+```
+
+3. **Configure Gateway as Systemd Service:**
+```bash
+sudo cp scripts/ultrax-server.service /etc/systemd/system/
+sudo systemctl enable ultrax-server
+sudo systemctl start ultrax-server
+```
+
+4. **Start All Services:**
+```bash
+cd ~/.claude/plugins/ultrapilot
+./start.sh
+```
+
+5. **Access from Anywhere:**
+- Relay Web UI: http://vps5:3000
+- Gateway API: http://vps5:3001
+
+### systemd Service Management
+
+```bash
+# Check Gateway status
+sudo systemctl status ultrax-server
+
+# Restart Gateway
+sudo systemctl restart ultrax-server
+
+# View Gateway logs
+sudo journalctl -u ultrax-server -f
+
+# Stop Gateway
+sudo systemctl stop ultrax-server
+```
+
+## Google Chat Integration
+
+### Setup
+
+1. **Create a Google Chat webhook:**
+   - Go to Google Chat → Space → Configure Webhooks
+   - Copy the webhook URL
+
+2. **Configure UltraX Gateway:**
+```bash
+# Add webhook URL to environment or config
+export GOOGLE_CHAT_WEBHOOK_URL="https://chat.googleapis.com/v1/spaces/XXX/messages?key=YYY&token=ZZZ"
+```
+
+3. **Test Integration:**
+```bash
+curl -X POST http://localhost:3001/webhook/google-chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Hello from UltraX!"}'
+```
+
+### Usage
+
+Send messages to your Google Chat space to:
+- Monitor agent activity
+- Receive build/test notifications
+- Query system status
+- Trigger specific commands
+
 ## License
 
 MIT
@@ -202,5 +438,6 @@ MIT
 
 Combines the best of:
 - [oh-my-claudecode](https://github.com/oh-my-claudecode) - Agent orchestration
-- Superpowers patterns - Phased development workflows
-- Wshobson's agents - Parallel execution with file ownership
+- [Superpowers](https://github.com/oh-my-claudecode) - Phased development workflows
+- [Wshobson's agents](https://github.com/wshobson) - Parallel execution with file ownership
+- [Claude Relay](https://github.com/chadbyte/claude-relay) - Production-ready web interface
