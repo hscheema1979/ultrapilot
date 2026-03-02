@@ -10,6 +10,7 @@
 import express, { Request, Response } from 'express';
 import { UltraXGateway, UltraXMessage, UltraXResponse } from './gateway.js';
 import { UltraXGoogleChatBot, GoogleChatConfig, GoogleChatWebhookEvent } from './chat-bot.js';
+import gatewayACL from './access-control.js';
 
 export interface ServerConfig {
   port?: number;
@@ -105,7 +106,26 @@ export class UltraXServer {
    * Setup HTTP routes
    */
   private setupRoutes(): void {
-    // Root endpoint - API information
+    // Access control middleware for Gateway endpoints
+    const checkAccess = (req: Request, res: Response, next: any) => {
+      const relayId = req.headers['x-relay-id'] || 'unknown';
+      const hostname = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+
+      // Check if this Relay is allowed
+      if (!gatewayACL.isAllowed(relayId, hostname)) {
+        return res.status(403).json({
+          error: 'Access denied',
+          message: 'Relay instance not authorized',
+          relayId,
+          hostname,
+          timestamp: new Date()
+        });
+      }
+
+      next();
+    };
+
+    // Root endpoint - API information (no access control)
     this.app.get('/', (req: Request, res: Response) => {
       res.json({
         name: 'UltraX Server',
