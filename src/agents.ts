@@ -101,6 +101,63 @@ export const AGENT_CATALOG: Record<string, AgentType> = {
     capabilities: ['code-review', 'api-contract-validation', 'backward-compatibility']
   },
 
+  // === Domain Experts (Phase 1.5 Detailed Planning) ===
+  'ultra:frontend-expert': {
+    name: 'Frontend Expert',
+    description: 'React, Vue, Angular, TypeScript, component architecture, state management, UI patterns',
+    model: 'opus',
+    capabilities: ['frontend-architecture', 'react', 'vue', 'angular', 'typescript', 'state-management', 'ui-components']
+  },
+
+  'ultra:backend-expert': {
+    name: 'Backend Expert',
+    description: 'Node.js, Python, Go, API design, microservices, WebSocket servers, REST, GraphQL',
+    model: 'opus',
+    capabilities: ['backend-architecture', 'nodejs', 'python', 'go', 'api-design', 'microservices', 'websocket', 'rest', 'graphql']
+  },
+
+  'ultra:database-expert': {
+    name: 'Database Expert',
+    description: 'PostgreSQL, MongoDB, Redis, schema design, migrations, indexing, query optimization',
+    model: 'opus',
+    capabilities: ['database-design', 'postgresql', 'mongodb', 'redis', 'sql', 'nosql', 'migrations', 'indexing', 'query-optimization']
+  },
+
+  'ultra:api-integration-expert': {
+    name: 'API Integration Expert',
+    description: 'I/O contracts, API boundaries, integration patterns, cross-domain communication, error handling',
+    model: 'opus',
+    capabilities: ['api-contracts', 'integration-design', 'io-boundaries', 'cross-domain-communication', 'error-handling']
+  },
+
+  'ultra:kubernetes-architect': {
+    name: 'Kubernetes Architect',
+    description: 'K8s deployments, services, ingress, Helm, Docker orchestration, containerization',
+    model: 'opus',
+    capabilities: ['kubernetes', 'docker', 'helm', 'deployment-strategies', 'containerization', 'orchestration']
+  },
+
+  'ultra:security-architect': {
+    name: 'Security Architect',
+    description: 'AuthN/AuthZ, encryption, OWASP, security patterns, threat modeling, secure design',
+    model: 'opus',
+    capabilities: ['security-design', 'authentication', 'authorization', 'encryption', 'threat-modeling', 'owasp']
+  },
+
+  'ultra:performance-expert': {
+    name: 'Performance Expert',
+    description: 'Caching strategies, load balancing, optimization, monitoring, performance tuning',
+    model: 'sonnet',
+    capabilities: ['performance-optimization', 'caching', 'load-balancing', 'monitoring', 'profiling']
+  },
+
+  'ultra:testing-expert': {
+    name: 'Testing Expert',
+    description: 'Test strategy, integration tests, E2E tests, coverage, test automation',
+    model: 'sonnet',
+    capabilities: ['test-strategy', 'integration-tests', 'e2e-tests', 'coverage', 'test-automation']
+  },
+
   // === Debugging & Analysis ===
   'ultra:debugger': {
     name: 'Debugger',
@@ -193,16 +250,107 @@ export function getAgentDescription(agentType: string): string {
 /**
  * List all agent types by category
  */
-export function listAgentsByCategory(category: 'orchestration' | 'implementation' | 'quality' | 'review' | 'debugging' | 'support' | 'team'): string[] {
+export function listAgentsByCategory(category: 'orchestration' | 'implementation' | 'quality' | 'review' | 'domain-experts' | 'debugging' | 'support' | 'team'): string[] {
   const categoryMap: Record<string, string[]> = {
     orchestration: ['ultra:analyst', 'ultra:architect', 'ultra:planner', 'ultra:critic'],
     implementation: ['ultra:executor', 'ultra:executor-low', 'ultra:executor-high'],
     quality: ['ultra:test-engineer', 'ultra:verifier'],
     review: ['ultra:security-reviewer', 'ultra:quality-reviewer', 'ultra:code-reviewer'],
+    'domain-experts': ['ultra:frontend-expert', 'ultra:backend-expert', 'ultra:database-expert', 'ultra:api-integration-expert', 'ultra:kubernetes-architect', 'ultra:security-architect', 'ultra:performance-expert', 'ultra:testing-expert'],
     debugging: ['ultra:debugger', 'ultra:scientist'],
     support: ['ultra:build-fixer', 'ultra:designer', 'ultra:writer', 'ultra:document-specialist'],
     team: ['ultra:team-lead', 'ultra:team-implementer', 'ultra:team-reviewer', 'ultra:team-debugger']
   };
 
   return categoryMap[category] || [];
+}
+
+/**
+ * Load wshobson agents into AGENT_CATALOG
+ *
+ * Scans the wshobson-agents/plugins directory and merges all 113+ specialist agents
+ * into the UltraPilot AGENT_CATALOG for use by orchestrator agents.
+ *
+ * @param pluginsDir - Path to wshobson plugins directory (default: ./wshobson-agents/plugins)
+ * @returns Number of agents loaded
+ *
+ * @example
+ * ```typescript
+ * import { loadWshobsonAgents, AGENT_CATALOG } from './agents.js';
+ *
+ * const count = await loadWshobsonAgents();
+ * console.log(`Loaded ${count} wshobson agents`);
+ * console.log(`Total agents: ${Object.keys(AGENT_CATALOG).length}`);
+ * ```
+ */
+export async function loadWshobsonAgents(
+  pluginsDir: string = './wshobson-agents/plugins'
+): Promise<number> {
+  try {
+    const { createInMemoryRepository } = await import('./wshobson/repositories/index.js');
+    const path = await import('path');
+    const url = await import('url');
+
+    // Resolve plugins directory relative to this file
+    const __filename = url.fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const resolvedPluginsDir = path.resolve(__dirname, pluginsDir);
+
+    console.log(`[UltraPilot] Loading wshobson agents from: ${resolvedPluginsDir}`);
+
+    // Create repository and scan plugins
+    const repo = await createInMemoryRepository(resolvedPluginsDir);
+    const agents = await repo.query({});
+
+    let loaded = 0;
+    for (const agent of agents) {
+      const agentId = `wshobson:${agent.name}`;
+
+      // Map wshobson agent to UltraPilot format
+      AGENT_CATALOG[agentId] = {
+        name: agent.name,
+        description: agent.description,
+        model: mapModelTier(agent.category),
+        capabilities: agent.capabilities.map((c: any) => c.name)
+      };
+
+      loaded++;
+    }
+
+    console.log(`[UltraPilot] Loaded ${loaded} wshobson agents into AGENT_CATALOG`);
+    console.log(`[UltraPilot] Total agents in catalog: ${Object.keys(AGENT_CATALOG).length}`);
+
+    return loaded;
+  } catch (error) {
+    console.error('[UltraPilot] Failed to load wshobson agents:', error);
+    return 0;
+  }
+}
+
+/**
+ * Map wshobson category to UltraPilot model tier
+ *
+ * @param category - wshobson agent category
+ * @returns Appropriate model tier for the category
+ */
+function mapModelTier(category: string): 'opus' | 'sonnet' | 'haiku' {
+  const lower = category.toLowerCase();
+
+  // Architecture/analysis -> opus (highest reasoning)
+  if (lower.includes('architect') || lower.includes('analyst') || lower.includes('design')) {
+    return 'opus';
+  }
+
+  // Implementation/development -> sonnet (balanced)
+  if (lower.includes('developer') || lower.includes('pro') || lower.includes('engineer')) {
+    return 'sonnet';
+  }
+
+  // Simple/documentation tasks -> haiku (fastest)
+  if (lower.includes('writer') || lower.includes('document')) {
+    return 'haiku';
+  }
+
+  // Default to sonnet for unknown categories
+  return 'sonnet';
 }

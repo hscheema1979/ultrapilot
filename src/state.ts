@@ -77,6 +77,80 @@ export interface ValidationState extends UltrapilotState {
 }
 
 /**
+ * Domain Expert Review for Phase 1.5 Detailed Planning
+ */
+export interface DomainExpertReview {
+  domain: string;
+  reviewer: string; // Agent ID (e.g., 'ultra:frontend-expert')
+  status: 'APPROVED' | 'NEEDS_REVISION' | 'REJECTED';
+  cycle: number;
+  criticalIssues: number;
+  recommendations: number;
+  findings?: string;
+  ioContractValidations?: IOContractValidation[];
+  reviewedAt?: string;
+}
+
+/**
+ * I/O Contract between domains
+ */
+export interface IOContract {
+  id: string;
+  name: string;
+  domains: string[]; // ['frontend', 'backend']
+  description: string;
+  contract: string; // TypeScript interface or schema
+  status: 'VALID' | 'NEEDS_CLARIFICATION' | 'BROKEN';
+  validatedIn?: string; // Cycle where validated
+  issue?: string;
+  suggestedFix?: string;
+}
+
+/**
+ * I/O Contract Validation from domain expert
+ */
+export interface IOContractValidation {
+  contractId: string;
+  status: 'VALID' | 'NEEDS_CLARIFICATION' | 'BROKEN';
+  issue?: string;
+  suggestedFix?: string;
+}
+
+/**
+ * Issue found during review
+ */
+export interface Issue {
+  id: string;
+  domain: string;
+  description: string;
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  status: 'OPEN' | 'FIXED' | 'WONTFIX';
+  fixedIn?: string; // Plan version where fixed
+  createdAt?: string;
+}
+
+/**
+ * Phase 1.5 Detailed Planning State
+ */
+export interface DetailedPlanningState extends UltrapilotState {
+  phase: '1.5';
+  cycle: number;
+  maxCycles: number;
+  status: 'draft' | 'review' | 'revised' | 're-review' | 'approved' | 'escalated';
+  currentPlan: string; // Path to current plan draft
+  planVersion: number; // 1, 2, 3...
+  reviews: DomainExpertReview[];
+  ioContracts: IOContract[];
+  criticalIssues: Issue[];
+  highIssues: Issue[];
+  mediumIssues: Issue[];
+  lowIssues: Issue[];
+  feedback?: string; // Aggregated feedback
+  startedAt: string;
+  completedAt?: string;
+}
+
+/**
  * Get the state directory for a project
  */
 export function getStateDir(projectRoot: string): string {
@@ -92,7 +166,7 @@ export function getStateDir(projectRoot: string): string {
  */
 export function readState<T extends UltrapilotState>(
   projectRoot: string,
-  mode: 'autopilot' | 'ralph' | 'ultraqa' | 'validation'
+  mode: 'autopilot' | 'ralph' | 'ultraqa' | 'validation' | 'detailedPlanning'
 ): T | null {
   const stateFile = join(getStateDir(projectRoot), `${mode}-state.json`);
   if (!existsSync(stateFile)) {
@@ -113,7 +187,7 @@ export function readState<T extends UltrapilotState>(
  */
 export function writeState<T extends UltrapilotState>(
   projectRoot: string,
-  mode: 'autopilot' | 'ralph' | 'ultraqa' | 'validation',
+  mode: 'autopilot' | 'ralph' | 'ultraqa' | 'validation' | 'detailedPlanning',
   state: T
 ): void {
   const stateDir = getStateDir(projectRoot);
@@ -128,7 +202,7 @@ export function writeState<T extends UltrapilotState>(
  */
 export function clearState(
   projectRoot: string,
-  mode: 'autopilot' | 'ralph' | 'ultraqa' | 'validation'
+  mode: 'autopilot' | 'ralph' | 'ultraqa' | 'validation' | 'detailedPlanning'
 ): void {
   const stateFile = join(getStateDir(projectRoot), `${mode}-state.json`);
   if (existsSync(stateFile)) {
@@ -208,10 +282,33 @@ export function initValidationState(projectRoot: string, maxRounds: number = 3):
 }
 
 /**
+ * Initialize detailed planning state (Phase 1.5)
+ */
+export function initDetailedPlanningState(projectRoot: string, maxCycles: number = 3): DetailedPlanningState {
+  return {
+    active: true,
+    timestamp: new Date().toISOString(),
+    phase: '1.5',
+    cycle: 1,
+    maxCycles,
+    status: 'draft',
+    currentPlan: '.ultra/detailed-plan-draft-v1.md',
+    planVersion: 1,
+    reviews: [],
+    ioContracts: [],
+    criticalIssues: [],
+    highIssues: [],
+    mediumIssues: [],
+    lowIssues: [],
+    startedAt: new Date().toISOString()
+  };
+}
+
+/**
  * Check if any mode is active
  */
 export function isAnyModeActive(projectRoot: string): boolean {
-  const modes = ['autopilot', 'ralph', 'ultraqa', 'validation'] as const;
+  const modes = ['autopilot', 'ralph', 'ultraqa', 'validation', 'detailedPlanning'] as const;
   for (const mode of modes) {
     const state = readState(projectRoot, mode);
     if (state?.active) {
@@ -225,7 +322,7 @@ export function isAnyModeActive(projectRoot: string): boolean {
  * Get active modes
  */
 export function getActiveModes(projectRoot: string): string[] {
-  const modes = ['autopilot', 'ralph', 'ultraqa', 'validation'] as const;
+  const modes = ['autopilot', 'ralph', 'ultraqa', 'validation', 'detailedPlanning'] as const;
   return modes.filter(mode => {
     const state = readState(projectRoot, mode);
     return state?.active === true;
