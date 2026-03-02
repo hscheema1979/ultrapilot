@@ -287,14 +287,25 @@ export class UltraXServer {
    */
   async start(): Promise<void> {
     const port = this.config.port || 3001;
+    const host = process.env.HOST || 'localhost'; // Use HOST from env or default to localhost
 
     return new Promise((resolve) => {
-      this.app.listen(port, () => {
+      this.app.listen(port, host, () => {
         console.log(`\n🚀 UltraX Server started`);
-        console.log(`📡 HTTP API: http://localhost:${port}`);
+        console.log(`📡 HTTP API: http://${host === '0.0.0.0' ? '0.0.0.0' : host}:${port}`);
         console.log(`🔌 Gateway: /api/gateway`);
         console.log(`💬 Google Chat Webhook: /webhook/google-chat`);
         console.log(`🌐 Relay Integration: ${this.config.relayUrl}`);
+        if (host === '0.0.0.0') {
+          console.log(`🌍 Network Access: ENABLED (all interfaces)`);
+          try {
+            const { execSync } = require('child_process');
+            const ip = execSync('hostname -I | awk \'{print $1\'').toString().trim();
+            console.log(`🔗 External URL: http://${ip}:${port}`);
+          } catch (e) {
+            // Ignore if command fails
+          }
+        }
         if (this.config.googleChat) {
           console.log(`✅ Google Chat bot enabled`);
         }
