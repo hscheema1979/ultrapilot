@@ -45,7 +45,9 @@ class MockRepository implements IAgentRepository {
     if (options.capabilities?.length > 0) {
       results = results.filter(agent => {
         const agentCaps = agent.capabilities.map(c => c.name);
-        return options.capabilities.every((cap: string) => agentCaps.includes(cap));
+        // Agent matches if it has AT LEAST ONE of the required capabilities
+        // The scoring system will rank agents with more matches higher
+        return options.capabilities.some((cap: string) => agentCaps.includes(cap));
       });
     }
 
