@@ -114,11 +114,61 @@ if (!existsSync(ultraStateDir)) {
 }
 console.log(`  ✓ .ultra/state/ created`);
 
+// Step 6: Service setup prompts
+console.log('\n🔧 Service Setup:');
+console.log('────────────────────────────────────────');
+
+const { execSync } = require('child_process');
+
+// Check if systemd service exists
+let hasSystemd = false;
+try {
+  execSync('which systemctl', { stdio: 'ignore' });
+  hasSystemd = true;
+} catch (e) {
+  // No systemctl
+}
+
+if (hasSystemd) {
+  console.log('\n1️⃣  UltraX Gateway (systemd service):');
+  console.log('   Install systemd service for auto-start on boot?');
+
+  // Auto-install if we can
+  try {
+    const serviceFile = join(PLUGIN_DIR, 'scripts', 'ultrax-server.service');
+    if (existsSync(serviceFile)) {
+      console.log('   Running: sudo cp scripts/ultrax-server.service /etc/systemd/system/');
+      console.log('           sudo systemctl enable ultrax-server');
+      console.log('   (Run these commands manually to install)');
+    }
+  } catch (e) {
+    console.log('   ⚠️  Service file not found, skipping');
+  }
+}
+
+console.log('\n2️⃣  Google Chat Integration:');
+console.log('   Set up Google Chat webhook for remote control?');
+console.log('   Run: ./setup-google-chat.sh');
+console.log('   This will configure:');
+console.log('   • Google Chat webhook URL');
+console.log('   • Two-way communication');
+console.log('   • Remote command execution');
+
 // Done!
 console.log('\n✅ Ultrapilot installation complete!\n');
-console.log('Next steps:');
-console.log('1. Restart Claude Code');
-console.log('2. Run: /ultrapilot <your task>');
-console.log('3. Check the HUD in your statusline\n');
-console.log('Example:');
-console.log('  /ultrapilot Build me a REST API for task management\n');
+console.log('📚 Next Steps:');
+console.log('────────────────────────────────────────');
+console.log('\n1️⃣  Start Services:');
+console.log('   ./start.sh              # Start Relay (3000) + Gateway (3001)');
+console.log('   ./status.sh             # Check service status\n');
+
+console.log('2️⃣  Configure Google Chat (Optional):');
+console.log('   ./setup-google-chat.sh  # Interactive setup wizard\n');
+
+console.log('3️⃣  Access Interfaces:');
+console.log('   • Relay Web UI:   http://localhost:3000');
+console.log('   • Gateway API:    http://localhost:3001');
+console.log('   • Via Tailscale:  http://vps5:3000 (or :3001)\n');
+
+console.log('4️⃣  Run Ultrapilot:');
+console.log('   /ultrapilot Build me a REST API for task management\n');
