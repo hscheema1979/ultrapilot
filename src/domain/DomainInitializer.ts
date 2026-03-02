@@ -295,7 +295,7 @@ export class DomainInitializer {
       routing: {
         rules: this.getDefaultRoutingRules(options.agents),
         priority: 'priority-based',
-        ownership: 'agent-ownership'
+        ownership: 'auto-assign'
       },
 
       priorityMatrix: this.getDefaultPriorityMatrix(),
@@ -508,7 +508,7 @@ export class DomainInitializer {
       agent: r.agent || this.inferAgentForRoutine(r.name, agents),
       tasks: r.tasks || ['Execute routine tasks'],
       timeout: 15,
-      onFailure: 'log-and-continue'
+      onFailure: 'log-and-continue' as const
     }));
 
     return [...defaults, ...mapped];

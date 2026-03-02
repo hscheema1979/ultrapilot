@@ -68,6 +68,15 @@ export {
   type HeartbeatState
 } from './AutoloopDaemon.js';
 
+// Export DomainProcessManager and related types
+export {
+  DomainProcessManager,
+  createDomainProcessManager,
+  listRunningDomains,
+  type ProcessConfig,
+  type ProcessStatus
+} from './DomainProcessManager.js';
+
 /**
  * Default export - DomainManager class
  */

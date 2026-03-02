@@ -240,6 +240,7 @@ export class UltraXGateway {
     agent?: string;
     phase?: string;
     status?: string;
+    hud?: string;
   }> {
     // This will interface with the actual Ultrapilot plugin
     // For now, return mock response
@@ -309,32 +310,24 @@ export class UltraXGateway {
    */
   private formatResponse(
     message: UltraXMessage,
-    result: { message: string; agent?: string; phase?: string; status?: string }
+    result: { message: string; agent?: string; phase?: string; status?: string; hud?: string }
   ): UltraXResponse {
-    const response: UltraXResponse = {
+    const response = {
       sessionId: message.sessionId,
       interface: message.interface,
       message: result.message,
-      timestamp: new Date()
-    };
+      timestamp: new Date(),
+      agent: result.agent,
+      phase: result.phase,
+      status: result.status as any,
+      hud: result.hud
+    } as UltraXResponse;
 
-    if (result.agent) {
-      response.agent = result.agent;
-    }
-
-    if (result.phase) {
-      response.phase = result.phase;
-    }
-
-    if (result.status) {
-      response.status = result.status as any;
-    }
-
-    // Add HUD if result includes it (from hud command) or for chat interfaces
-    const session = this.sessions.get(message.sessionId);
-    if (result.hud || message.interface === 'chat') {
+    // Add HUD for chat interfaces
+    if (message.interface === 'chat' && !result.hud) {
+      const session = this.sessions.get(message.sessionId);
       if (session) {
-        response.hud = result.hud || this.generateHUD(session);
+        response.hud = this.generateHUD(session);
       }
     }
 

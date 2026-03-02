@@ -108,11 +108,11 @@ export class UltraXServer {
   private setupRoutes(): void {
     // Access control middleware for Gateway endpoints
     const checkAccess = (req: Request, res: Response, next: any) => {
-      const relayId = req.headers['x-relay-id'] || 'unknown';
-      const hostname = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+      const relayId = (Array.isArray(req.headers['x-relay-id']) ? req.headers['x-relay-id'][0] : req.headers['x-relay-id']) || 'unknown';
+      const hostname = (Array.isArray(req.headers['x-forwarded-for']) ? req.headers['x-forwarded-for'][0] : req.headers['x-forwarded-for']) || req.socket.remoteAddress || 'unknown';
 
       // Check if this Relay is allowed
-      if (!gatewayACL.isAllowed(relayId, hostname)) {
+      if (!gatewayACL.isAllowed(relayId as string, hostname as string)) {
         return res.status(403).json({
           error: 'Access denied',
           message: 'Relay instance not authorized',
@@ -215,7 +215,7 @@ export class UltraXServer {
     // Session status endpoint
     this.app.get('/api/session/:sessionId', (req: Request, res: Response) => {
       const { sessionId } = req.params;
-      const status = this.gateway.getSessionStatus(sessionId);
+      const status = this.gateway.getSessionStatus(sessionId as string);
       res.json(status);
     });
 
@@ -223,7 +223,7 @@ export class UltraXServer {
     this.app.delete('/api/session/:sessionId', async (req: Request, res: Response) => {
       try {
         const { sessionId } = req.params;
-        await this.gateway.terminateSession(sessionId);
+        await this.gateway.terminateSession(sessionId as string);
         res.json({ success: true, sessionId });
       } catch (error: any) {
         res.status(404).json({
@@ -248,7 +248,7 @@ export class UltraXServer {
           } as GatewayErrorResponse);
         }
 
-        await this.gateway.switchSession(sessionId, targetInterface);
+        await this.gateway.switchSession(sessionId as string, targetInterface);
         res.json({ success: true, sessionId, targetInterface });
 
       } catch (error: any) {
@@ -365,7 +365,7 @@ export class UltraXServer {
           // Get all IPs
           const ips = execSync('hostname -I').toString().trim().split(/\s+/);
           if (ips.length > 0) {
-            console.log(`🔗 Local IPs: ${ips.map(ip => `http://${ip}:${port}`).join(', ')}`);
+            console.log(`🔗 Local IPs: ${ips.map((ip: string) => `http://${ip}:${port}`).join(', ')}`);
           }
 
           // Try to get Tailscale IP

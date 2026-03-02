@@ -5,7 +5,7 @@
  * Shows phases, iterations, QA cycles, context usage, and agent activity.
  */
 
-import { readState } from './state.js';
+import { readState, AutopilotState, RalphState, UltraqaState } from './state.js';
 
 // ANSI color codes
 const colors = {
@@ -110,10 +110,10 @@ export function renderHUD(config: HudConfig, ctx: RenderContext): string {
   const components: string[] = [];
   const elements = config.elements || {};
 
-  // Read all states
-  const autopilot = readState(ctx.projectRoot, 'autopilot');
-  const ralph = readState(ctx.projectRoot, 'ralph');
-  const ultraqa = readState(ctx.projectRoot, 'ultraqa');
+  // Read all states with proper type annotations
+  const autopilot = readState<AutopilotState>(ctx.projectRoot, 'autopilot');
+  const ralph = readState<RalphState>(ctx.projectRoot, 'ralph');
+  const ultraqa = readState<UltraqaState>(ctx.projectRoot, 'ultraqa');
 
   // Ultrapilot label
   if (elements.ultraLabel !== false) {

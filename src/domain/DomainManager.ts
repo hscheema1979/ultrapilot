@@ -360,7 +360,7 @@ export class DomainManager extends EventEmitter {
           tieredAutonomy: { enabled: true }
         });
 
-        await this.domainAgency.start();
+        await this.domainAgency!.start();
         this.domainAgencyLoaded = true;
 
         this.setupDomainAgencyEvents();
