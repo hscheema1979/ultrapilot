@@ -348,9 +348,9 @@ export async function loadWshobsonAgents(
 
     let loaded = 0;
     for (const agent of agents) {
-      const agentId = `wshobson:${agent.name}`;
+      const agentId = `agents-lib:${agent.name}`;
 
-      // Map wshobson agent to UltraPilot format
+      // Map specialist agent to UltraPilot format
       AGENT_CATALOG[agentId] = {
         name: agent.name,
         description: agent.description,
@@ -361,7 +361,7 @@ export async function loadWshobsonAgents(
       loaded++;
     }
 
-    console.log(`[UltraPilot] Loaded ${loaded} wshobson agents into AGENT_CATALOG`);
+    console.log(`[UltraPilot] Loaded ${loaded} specialist agents into AGENT_CATALOG`);
     console.log(`[UltraPilot] Total agents in catalog: ${Object.keys(AGENT_CATALOG).length}`);
 
     return loaded;
@@ -402,7 +402,7 @@ function mapModelTier(category: string): 'opus' | 'sonnet' | 'haiku' {
 /**
  * Initialize UltraPilot with all agents
  *
- * Loads UltraPilot's core agents plus all wshobson specialist agents.
+ * Loads UltraPilot's core agents plus all specialist agents from the agent library.
  * This should be called once at startup to make all agents available.
  *
  * @param options - Configuration options
@@ -414,7 +414,7 @@ function mapModelTier(category: string): 'opus' | 'sonnet' | 'haiku' {
  *
  * const total = await initializeUltraPilot({
  *   loadWshobson: true,
- *   wshobsonPluginsDir: './wshobson-agents/plugins'
+ *   wshobsonPluginsDir: './agents-lib/plugins'
  * });
  *
  * console.log(`Initialized ${total} agents`);
@@ -448,4 +448,26 @@ export async function initializeUltraPilot(options?: {
   console.log(`[UltraPilot] Initialization complete: ${total} agents available`);
 
   return total;
+}
+
+/**
+ * Auto-initialize UltraPilot when module loads (optional convenience)
+ *
+ * This is automatically called when the agents module is imported,
+ * unless ULTRAPILOT_AUTO_INIT env var is set to 'false'.
+ *
+ * To disable auto-initialization:
+ *   ULTRAPILOT_AUTO_INIT=false node your-app.js
+ */
+let _initialized = false;
+export async function ensureInitialized(): Promise<number> {
+  if (!_initialized) {
+    const autoInit = process.env.ULTRAPILOT_AUTO_INIT !== 'false';
+    if (autoInit) {
+      const total = await initializeUltraPilot({ loadWshobson: true });
+      _initialized = true;
+      return total;
+    }
+  }
+  return Object.keys(AGENT_CATALOG).length;
 }

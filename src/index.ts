@@ -9,6 +9,9 @@ export * from './agents.js';
 export * from './state.js';
 export * from './hud.js';
 
+// Re-export commonly used functions for convenience
+export { initializeUltraPilot, ensureInitialized, loadWshobsonAgents } from './agents.js';
+
 /**
  * Ultrapilot version
  */
