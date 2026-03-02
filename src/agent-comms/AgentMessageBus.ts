@@ -52,6 +52,21 @@ enum DeliveryStatus {
 }
 
 /**
+ * Payload schema definition
+ */
+interface PayloadSchema {
+  required?: string[];
+  properties?: Record<string, {
+    type?: 'string' | 'number' | 'boolean' | 'object' | 'array';
+    required?: boolean;
+    minLength?: number;
+    maxLength?: number;
+    pattern?: RegExp;
+    enum?: any[];
+  }>;
+}
+
+/**
  * Security configuration
  */
 interface SecurityConfig {
@@ -59,7 +74,7 @@ interface SecurityConfig {
   signingKey?: Buffer;
   enableEncryption: boolean;
   maxPayloadSize: number;
-  allowedPayloadTypes: Record<string, any[]>; // Schema validation
+  allowedPayloadTypes: Record<string, PayloadSchema>; // Schema validation
 }
 
 /**
@@ -651,8 +666,73 @@ export class AgentMessageBus extends EventEmitter {
 
     // Validate payload schema if configured
     if (this.security.allowedPayloadTypes[message.type]) {
-      const schema = this.security.allowedPayloadTypes[message.type];
-      // TODO: Implement schema validation
+      this.validatePayloadSchema(message.type, message.payload);
+    }
+  }
+
+  /**
+   * Validate payload against schema
+   */
+  private validatePayloadSchema(type: string, payload: any): void {
+    const schema = this.security.allowedPayloadTypes[type];
+    if (!schema) return;
+
+    // Check required top-level fields
+    if (schema.required) {
+      const missing = schema.required.filter(field => !(field in payload));
+      if (missing.length > 0) {
+        throw new Error(`Missing required fields for ${type}: ${missing.join(', ')}`);
+      }
+    }
+
+    // Validate property schemas
+    if (schema.properties) {
+      for (const [fieldName, fieldSchema] of Object.entries(schema.properties)) {
+        if (!(fieldName in payload)) {
+          if (fieldSchema.required) {
+            throw new Error(`Missing required field: ${fieldName}`);
+          }
+          continue;
+        }
+
+        const value = payload[fieldName];
+
+        // Type validation
+        if (fieldSchema.type) {
+          const actualType = Array.isArray(value) ? 'array' : typeof value;
+          if (actualType !== fieldSchema.type) {
+            throw new Error(
+              `Field ${fieldName}: expected type ${fieldSchema.type}, got ${actualType}`
+            );
+          }
+        }
+
+        // String validation
+        if (fieldSchema.type === 'string' && typeof value === 'string') {
+          if (fieldSchema.minLength && value.length < fieldSchema.minLength) {
+            throw new Error(
+              `Field ${fieldName}: length ${value.length} < min ${fieldSchema.minLength}`
+            );
+          }
+          if (fieldSchema.maxLength && value.length > fieldSchema.maxLength) {
+            throw new Error(
+              `Field ${fieldName}: length ${value.length} > max ${fieldSchema.maxLength}`
+            );
+          }
+          if (fieldSchema.pattern && !fieldSchema.pattern.test(value)) {
+            throw new Error(
+              `Field ${fieldName}: does not match required pattern`
+            );
+          }
+        }
+
+        // Enum validation
+        if (fieldSchema.enum && !fieldSchema.enum.includes(value)) {
+          throw new Error(
+            `Field ${fieldName}: value ${JSON.stringify(value)} not in allowed enum [${fieldSchema.enum.join(', ')}]`
+          );
+        }
+      }
     }
   }
 
