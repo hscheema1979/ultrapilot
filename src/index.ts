@@ -8,9 +8,8 @@
 export * from './agents.js';
 export * from './state.js';
 export * from './hud.js';
-
-// Re-export commonly used functions for convenience
-export { initializeUltraPilot, ensureInitialized, loadWshobsonAgents } from './agents.js';
+export * from './registry.js';
+export * from './execution/parallel-task.js';
 
 /**
  * Ultrapilot version
@@ -56,14 +55,6 @@ export const ULTRA_AGENTS = {
   TEAM_IMPLEMENTER: 'ultra:team-implementer',
   TEAM_REVIEWER: 'ultra:team-reviewer',
   TEAM_DEBUGGER: 'ultra:team-debugger',
-
-  // Agentic Systems
-  CONTEXT_ENGINEER: 'ultra:context-engineer',
-  ML_ENGINEER: 'ultra:ml-engineer',
-  MLOPS_ENGINEER: 'ultra:mlops-engineer',
-  CONDUCTOR: 'ultra:conductor',
-  AGENTIC_ARCHITECT: 'ultra:agentic-architect',
-  PROMPT_ENGINEER: 'ultra:prompt-engineer',
 } as const;
 
 /**
