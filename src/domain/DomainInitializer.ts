@@ -11,6 +11,7 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { existsSync } from 'fs';
+import { AGENT_CATALOG, AGENTS_BY_DOMAIN, AgentType } from '../agents.js';
 
 /**
  * Agent definition with explicit agentic structure
@@ -346,7 +347,7 @@ export class DomainInitializer {
   }
 
   /**
-   * Get agent metadata from catalog
+   * Get agent metadata from AGENT_CATALOG
    */
   private getAgentMetadata(agentName: string): {
     role: string;
@@ -356,120 +357,89 @@ export class DomainInitializer {
     autonomous: boolean;
     flags?: Record<string, boolean>;
   } {
-    // Agent catalog with explicit roles and capabilities
-    const catalog: Record<string, any> = {
-      'ultra:team-lead': {
-        role: 'Team Orchestration',
-        model: 'opus',
-        capabilities: ['team-orchestration', 'work-decomposition', 'lifecycle-management', 'resource-allocation'],
-        ownership: ['.ultra/queues/*', '.ultra/state/*', 'agent-coordination'],
-        autonomous: true,
-        flags: { coordination: true }
-      },
-      'ultra:team-implementer': {
-        role: 'Parallel Implementation',
+    // Import from comprehensive agent catalog (173+ agents)
+    const agent = AGENT_CATALOG[agentName];
+
+    if (!agent) {
+      // Return default for unknown agents
+      return {
+        role: 'General Agent',
         model: 'sonnet',
-        capabilities: ['parallel-implementation', 'file-ownership', 'feature-development'],
-        ownership: ['src/**/*.ts', 'skills/**/*', 'lib/**/*'],
-        autonomous: true,
-        flags: { parallel: true }
-      },
-      'ultra:team-reviewer': {
-        role: 'Multi-Dimensional Review',
-        model: 'sonnet',
-        capabilities: ['security-review', 'quality-review', 'architecture-review'],
-        ownership: ['code-review', 'quality-gates'],
-        autonomous: true,
-        flags: { reviewer: true }
-      },
-      'ultra:team-debugger': {
-        role: 'Debugging & Fix Verification',
-        model: 'sonnet',
-        capabilities: ['root-cause-analysis', 'hypothesis-testing', 'fix-verification'],
-        ownership: ['bug-fixing', 'test-failures'],
-        autonomous: true,
-        flags: { debugger: true }
-      },
-      'ultra:executor': {
-        role: 'Feature Implementation',
-        model: 'sonnet',
-        capabilities: ['feature-development', 'api-endpoints', 'business-logic'],
-        ownership: ['src/**/*.ts', 'lib/**/*.ts']
-      },
-      'ultra:test-engineer': {
-        role: 'Test Engineering',
-        model: 'sonnet',
-        capabilities: ['test-strategy', 'test-implementation', 'coverage-analysis'],
-        ownership: ['tests/**/*', '**/*.test.ts', '**/*.spec.ts'],
-        autonomous: true
-      },
-      'ultra:debugger': {
-        role: 'Root Cause Analysis',
-        model: 'sonnet',
-        capabilities: ['error-analysis', 'stack-trace-analysis', 'fix-verification'],
-        ownership: ['bug-fixes', 'error-investigation']
-      },
-      'ultra:code-reviewer': {
-        role: 'Code Quality Review',
-        model: 'opus',
-        capabilities: ['code-review', 'maintainability-analysis', 'anti-pattern-detection'],
-        ownership: ['code-quality', 'refactoring'],
-        autonomous: true,
-        flags: { reviewer: true }
-      },
-      'ultra:security-reviewer': {
-        role: 'Security Assessment',
-        model: 'sonnet',
-        capabilities: ['security-audit', 'vulnerability-scan', 'auth-validation'],
-        ownership: ['security-validation'],
-        autonomous: true,
-        flags: { reviewer: true, vetoPower: true }
-      },
-      'ultra:quality-reviewer': {
-        role: 'Performance & Quality',
-        model: 'sonnet',
-        capabilities: ['performance-analysis', 'production-readiness', 'optimization'],
-        ownership: ['performance-validation', 'optimization'],
-        autonomous: true,
-        flags: { reviewer: true }
-      },
-      // Trading domain agents
-      'ultra:quant-analyst': {
-        role: 'Strategy Development',
-        model: 'opus',
-        capabilities: ['strategy-development', 'backtesting', 'signal-analysis', 'statistical-arbitrage'],
-        ownership: ['strategy-logic', 'signal-generation', 'backtesting', 'performance-analysis'],
-        autonomous: true
-      },
-      'ultra:risk-manager': {
-        role: 'Risk Management',
-        model: 'opus',
-        capabilities: ['var-calculation', 'position-sizing', 'circuit-breakers', 'risk-aggregation'],
-        ownership: ['risk-limits', 'circuit-breakers', 'position-sizing', 'exposure-monitoring'],
-        autonomous: true,
-        flags: { vetoPower: true }
-      },
-      'ultra:trading-architect': {
-        role: 'System Architecture',
-        model: 'opus',
-        capabilities: ['system-design', 'broker-integration', 'data-pipeline', 'execution-engine'],
-        ownership: ['infrastructure-design', 'broker-apis', 'data-pipelines']
-      },
-      'ultra:execution-developer': {
-        role: 'Broker Integration',
-        model: 'sonnet',
-        capabilities: ['broker-api-integration', 'order-routing', 'execution-algorithms'],
-        ownership: ['order-execution', 'broker-connections', 'oauth-management']
-      }
+        capabilities: ['general-purpose'],
+        ownership: [],
+        autonomous: false
+      };
+    }
+
+    // Map AgentType to domain initializer format
+    const metadata: any = {
+      role: this.inferRoleFromDescription(agent.description),
+      model: agent.model,
+      capabilities: agent.capabilities,
+      ownership: this.inferOwnershipFromDomain(agent.domain, agent.plugin),
+      autonomous: this.inferAutonomyFromModel(agent.model, agent.domain)
     };
 
-    return catalog[agentName] || {
-      role: 'General Agent',
-      model: 'sonnet',
-      capabilities: ['general-purpose'],
-      ownership: [],
-      autonomous: false
+    // Add flags based on agent type
+    if (agent.name.includes('lead') || agent.name.includes('orchestrator') || agent.name.includes('coordinator')) {
+      metadata.flags = { coordination: true };
+    } else if (agent.name.includes('implementer') || agent.name.includes('builder')) {
+      metadata.flags = { parallel: true };
+    } else if (agent.name.includes('reviewer') || agent.name.includes('auditor')) {
+      metadata.flags = { reviewer: true };
+      if (agent.name.includes('security') || agent.name.includes('risk') || agent.name.includes('safety')) {
+        metadata.flags.vetoPower = true;
+      }
+    } else if (agent.name.includes('debugger') || agent.name.includes('diagnostics')) {
+      metadata.flags = { debugger: true };
+    }
+
+    return metadata;
+  }
+
+  /**
+   * Infer role from agent description
+   */
+  private inferRoleFromDescription(description: string): string {
+    // Extract first meaningful phrase from description
+    const words = description.split(' ').slice(0, 5).join(' ');
+    return words.length > 40 ? words.slice(0, 40) + '...' : words;
+  }
+
+  /**
+   * Infer ownership based on domain and plugin
+   */
+  private inferOwnershipFromDomain(domain: string, plugin: string): string[] {
+    const ownershipMap: Record<string, string[]> = {
+      'software-dev': ['src/**/*.ts', 'lib/**/*.ts', 'skills/**/*', 'tests/**/*'],
+      'architecture': ['architecture/**/*', 'docs/architecture/**/*', 'infrastructure/**/*'],
+      'quality': ['tests/**/*', '**/*.test.ts', '**/*.spec.ts', 'quality-gates/**/*'],
+      'security': ['security/**/*', 'auth/**/*', 'credentials/**/*'],
+      'operations': ['ops/**/*', 'deploy/**/*', 'monitoring/**/*', 'logs/**/*'],
+      'ai-ml': ['ml/**/*', 'models/**/*', 'training/**/*', 'inference/**/*'],
+      'marketing': ['content/**/*', 'marketing/**/*', 'seo/**/*'],
+      'design': ['ui/**/*', 'design/**/*', 'components/**/*', 'styles/**/*'],
+      'data': ['data/**/*', 'datasets/**/*', 'pipelines/**/*'],
+      'mobile': ['mobile/**/*', 'ios/**/*', 'android/**/*'],
+      'agent-teams': ['.ultra/queues/*', '.ultra/state/*', 'agent-coordination'],
+      'debugging': ['bug-fixes/**/*', 'errors/**/*', 'diagnostics/**/*']
     };
+
+    return ownershipMap[domain] || [`${plugin}/**/*`];
+  }
+
+  /**
+   * Infer autonomy based on model and domain
+   */
+  private inferAutonomyFromModel(model: string, domain: string): boolean {
+    // Opus agents are typically autonomous
+    if (model === 'opus') return true;
+
+    // Certain domains require autonomy
+    const autonomousDomains = ['agent-teams', 'quality', 'security', 'operations'];
+    if (autonomousDomains.includes(domain)) return true;
+
+    return false;
   }
 
   /**
