@@ -53,6 +53,14 @@ export const ULTRA_AGENTS = {
   TEAM_IMPLEMENTER: 'ultra:team-implementer',
   TEAM_REVIEWER: 'ultra:team-reviewer',
   TEAM_DEBUGGER: 'ultra:team-debugger',
+
+  // Agentic Systems
+  CONTEXT_ENGINEER: 'ultra:context-engineer',
+  ML_ENGINEER: 'ultra:ml-engineer',
+  MLOPS_ENGINEER: 'ultra:mlops-engineer',
+  CONDUCTOR: 'ultra:conductor',
+  AGENTIC_ARCHITECT: 'ultra:agentic-architect',
+  PROMPT_ENGINEER: 'ultra:prompt-engineer',
 } as const;
 
 /**

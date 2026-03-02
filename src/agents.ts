@@ -230,6 +230,49 @@ export const AGENT_CATALOG: Record<string, AgentType> = {
     description: 'External documentation lookup, reference research',
     model: 'sonnet',
     capabilities: ['external-docs', 'reference-lookup', 'documentation-research']
+  },
+
+  // === Agentic System Domain Experts ===
+  'ultra:context-engineer': {
+    name: 'Context Engineer',
+    description: 'Manages context sharing, state synchronization, and information flow across multi-agent systems. Handles context window optimization, context compression, and context routing between agents.',
+    model: 'opus',
+    capabilities: ['context-management', 'state-synchronization', 'context-window-optimization', 'context-routing', 'multi-agent-coordination']
+  },
+
+  'ultra:ml-engineer': {
+    name: 'ML Engineer',
+    description: 'Machine learning model development, training pipelines, feature engineering, model evaluation, and deployment. Specializes in TensorFlow, PyTorch, scikit-learn, and ML infrastructure.',
+    model: 'opus',
+    capabilities: ['ml-model-development', 'training-pipelines', 'feature-engineering', 'model-evaluation', 'tensorflow', 'pytorch', 'scikit-learn', 'ml-infrastructure']
+  },
+
+  'ultra:mlops-engineer': {
+    name: 'MLOps Engineer',
+    description: 'Machine learning operations, model deployment, monitoring, CI/CD for ML, experiment tracking, model versioning, and ML infrastructure. Handles production ML systems at scale.',
+    model: 'opus',
+    capabilities: ['mlops', 'model-deployment', 'ml-monitoring', 'ml-cicd', 'experiment-tracking', 'model-versioning', 'ml-infrastructure', 'kubeflow', 'mlflow']
+  },
+
+  'ultra:conductor': {
+    name: 'Conductor / Orchestrator',
+    description: 'Multi-agent orchestration, workflow coordination, agent lifecycle management, task distribution, and result synthesis. Manages complex multi-agent workflows and ensures agents work together effectively.',
+    model: 'opus',
+    capabilities: ['agent-orchestration', 'workflow-coordination', 'agent-lifecycle-management', 'task-distribution', 'result-synthesis', 'multi-agent-workflows']
+  },
+
+  'ultra:agentic-architect': {
+    name: 'Agentic Systems Architect',
+    description: 'Designs agentic systems, multi-agent architectures, agent communication protocols, and coordination patterns. Experts in agent frameworks (LangChain, AutoGen, CrewAI) and agentic design patterns.',
+    model: 'opus',
+    capabilities: ['agentic-system-design', 'multi-agent-architecture', 'agent-communication', 'coordination-patterns', 'langchain', 'autogen', 'crewai', 'agent-frameworks']
+  },
+
+  'ultra:prompt-engineer': {
+    name: 'Prompt Engineer',
+    description: 'Prompt optimization, prompt engineering patterns, few-shot learning, chain-of-thought prompting, and prompt testing. Specializes in crafting effective prompts for LLMs and agentic systems.',
+    model: 'sonnet',
+    capabilities: ['prompt-engineering', 'prompt-optimization', 'few-shot-learning', 'chain-of-thought', 'prompt-testing', 'llm-interaction']
   }
 };
 
@@ -250,7 +293,7 @@ export function getAgentDescription(agentType: string): string {
 /**
  * List all agent types by category
  */
-export function listAgentsByCategory(category: 'orchestration' | 'implementation' | 'quality' | 'review' | 'domain-experts' | 'debugging' | 'support' | 'team'): string[] {
+export function listAgentsByCategory(category: 'orchestration' | 'implementation' | 'quality' | 'review' | 'domain-experts' | 'debugging' | 'support' | 'team' | 'agentic-systems'): string[] {
   const categoryMap: Record<string, string[]> = {
     orchestration: ['ultra:analyst', 'ultra:architect', 'ultra:planner', 'ultra:critic'],
     implementation: ['ultra:executor', 'ultra:executor-low', 'ultra:executor-high'],
@@ -259,7 +302,8 @@ export function listAgentsByCategory(category: 'orchestration' | 'implementation
     'domain-experts': ['ultra:frontend-expert', 'ultra:backend-expert', 'ultra:database-expert', 'ultra:api-integration-expert', 'ultra:kubernetes-architect', 'ultra:security-architect', 'ultra:performance-expert', 'ultra:testing-expert'],
     debugging: ['ultra:debugger', 'ultra:scientist'],
     support: ['ultra:build-fixer', 'ultra:designer', 'ultra:writer', 'ultra:document-specialist'],
-    team: ['ultra:team-lead', 'ultra:team-implementer', 'ultra:team-reviewer', 'ultra:team-debugger']
+    team: ['ultra:team-lead', 'ultra:team-implementer', 'ultra:team-reviewer', 'ultra:team-debugger'],
+    'agentic-systems': ['ultra:context-engineer', 'ultra:ml-engineer', 'ultra:mlops-engineer', 'ultra:conductor', 'ultra:agentic-architect', 'ultra:prompt-engineer']
   };
 
   return categoryMap[category] || [];
@@ -353,4 +397,55 @@ function mapModelTier(category: string): 'opus' | 'sonnet' | 'haiku' {
 
   // Default to sonnet for unknown categories
   return 'sonnet';
+}
+
+/**
+ * Initialize UltraPilot with all agents
+ *
+ * Loads UltraPilot's core agents plus all wshobson specialist agents.
+ * This should be called once at startup to make all agents available.
+ *
+ * @param options - Configuration options
+ * @returns Total number of agents loaded
+ *
+ * @example
+ * ```typescript
+ * import { initializeUltraPilot, AGENT_CATALOG } from './agents.js';
+ *
+ * const total = await initializeUltraPilot({
+ *   loadWshobson: true,
+ *   wshobsonPluginsDir: './wshobson-agents/plugins'
+ * });
+ *
+ * console.log(`Initialized ${total} agents`);
+ * console.log(`Available: ${Object.keys(AGENT_CATALOG).join(', ')}`);
+ * ```
+ */
+export async function initializeUltraPilot(options?: {
+  loadWshobson?: boolean;
+  wshobsonPluginsDir?: string;
+}): Promise<number> {
+  const { loadWshobson = true, wshobsonPluginsDir = './wshobson-agents/plugins' } = options || {};
+
+  console.log('[UltraPilot] Initializing agent catalog...');
+
+  // Count core UltraPilot agents
+  const coreAgentCount = Object.keys(AGENT_CATALOG).length;
+  console.log(`[UltraPilot] Loaded ${coreAgentCount} core UltraPilot agents`);
+
+  // Load wshobson agents if requested
+  let wshobsonAgentCount = 0;
+  if (loadWshobson) {
+    try {
+      wshobsonAgentCount = await loadWshobsonAgents(wshobsonPluginsDir);
+    } catch (error) {
+      console.warn('[UltraPilot] Failed to load wshobson agents:', error);
+      console.warn('[UltraPilot] Continuing with core agents only');
+    }
+  }
+
+  const total = coreAgentCount + wshobsonAgentCount;
+  console.log(`[UltraPilot] Initialization complete: ${total} agents available`);
+
+  return total;
 }
