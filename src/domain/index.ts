@@ -77,6 +77,14 @@ export {
   type ProcessStatus
 } from './DomainProcessManager.js';
 
+// Export DomainAgentPromptEngineer and related types
+export {
+  DomainAgentPromptEngineer,
+  createDomainAgentPromptEngineer,
+  type AgentPromptConfig,
+  type GeneratedPrompt
+} from './DomainAgentPromptEngineer.js';
+
 /**
  * Default export - DomainManager class
  */
