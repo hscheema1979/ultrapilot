@@ -90,63 +90,60 @@ Add to `~/.claude/settings.json`:
 └── package.json
 ```
 
-## Architecture: Optimized Integration
+## Architecture: Phase 1 - Integrated (No Code Duplication)
 
-### Key Design Principle: **No Code Duplication**
+### Key Design Principle: **One Plugin = Everything**
 
-Ultrapilot uses a **coordinated architecture** rather than duplicating code:
+**Phase 1**: Relay is embedded directly in Ultrapilot (no functional changes)
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Ultrapilot Plugin                         │
-│                  (~/.claude/plugins/ultrapilot/)             │
-│                                                               │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │  Ultrapilot Core                                     │   │
-│  │  • 29 specialist agents                              │   │
-│  │  • State management                                  │   │
-│  │  • HUD system                                        │   │
-│  │  • Skills coordination                               │   │
-│  └──────────────────────────────────────────────────────┘   │
-│                                                               │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │  UltraX Gateway (Port 3001)                          │   │
-│  │  • REST API server                                   │   │
-│  │  • Google Chat webhook handler                       │   │
-│  │  • Relay integration endpoints                       │   │
-│  │  • Session management                               │   │
-│  └──────────────────────────────────────────────────────┘   │
-│                                                               │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │  Unified Startup Scripts                             │   │
-│  │  • start.sh - Coordinate both services               │   │
-│  │  • status.sh - Monitor all services                  │   │
-│  │  • stop.sh - Graceful shutdown                       │   │
-│  └──────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            │ References (not copies!)
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│              Relay Web UI (Separate Project)                 │
-│           (~/.claude-web-interfaces/claude-relay/)           │
-│                                                               │
-│  • Full-featured web interface                               │
-│  • Real-time agent monitoring                                │
-│  • Session management                                        │
-│  • File browser                                              │
-│  • Terminal access                                           │
-│  • Runs on port 3000                                         │
-└─────────────────────────────────────────────────────────────┘
+ultrapilot/ (ONE REPO - ONE CLONE = EVERYTHING)
+│
+├── relay/              ← Relay Web UI (embedded, as-is)
+│   ├── lib/            ← All Relay code (unchanged)
+│   ├── bin/            ← CLI with --dangerously-skip-permissions
+│   └── package.json
+│
+├── src/                ← Ultrapilot Core
+│   ├── agents.ts      ← 29 specialist agents
+│   ├── state.ts       ← State management
+│   ├── hud.ts         ← HUD system
+│   └── server.ts      ← UltraX Gateway (port 3001)
+│
+├── scripts/
+│   └── install.mjs
+│
+├── start.sh           ← Starts Relay + Gateway together
+├── status.sh
+└── stop.sh
 ```
 
-### Why This Architecture?
+### Phase 1 Features
 
-1. **No Duplication**: Relay stays in its original location, maintained as a separate project
-2. **Optimal Locations**: Each component lives where it's best maintained
-3. **Coordination**: Startup scripts coordinate both services without copying code
-4. **Single Entry Point**: `./start.sh` launches everything together
-5. **Independent Updates**: Update Relay independently without affecting Ultrapilot
+✅ **Complete Relay Integration**
+- All Relay code embedded in `relay/`
+- Runs with `--dangerously-skip-permissions` by default
+- Zero functional changes to Relay
+- Works exactly like standalone Relay
+
+✅ **UltraX Gateway**
+- REST API server (port 3001)
+- Google Chat webhook handler
+- Relay integration endpoints
+
+✅ **Unified Management**
+- `./start.sh` - Start both services
+- `./status.sh` - Check all services
+- `./stop.sh` - Stop gracefully
+
+### Phase 2 (Future): UI Enhancements
+
+Planned enhancements to Relay UI:
+- Ultrapilot sidebar menu items
+- Ralph loop status display
+- Task queue viewer
+- Quality gates dashboard
+- `.ultra/` state file viewers
 
 ## Agent Catalog
 

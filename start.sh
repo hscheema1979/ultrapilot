@@ -17,7 +17,7 @@ if curl -s http://localhost:3000 > /dev/null; then
   echo "✅ Relay already running on port 3000"
 else
   echo "🚀 Starting Relay Web UI (port 3000)..."
-  cd relay && node bin/cli.js &
+  cd relay && node bin/cli.js --dangerously-skip-permissions &
   RELAY_PID=$!
   echo "   Relay PID: $RELAY_PID"
   cd ..
