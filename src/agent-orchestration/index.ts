@@ -1,12 +1,14 @@
 /**
- * Agent Orchestration - Workflow Coordination
+ * Agent Orchestration - Exports
  *
- * Exports the Agent Orchestrator which coordinates:
- * - Agent Bridge (behavioral definitions)
- * - Agent State Store (persistent memory)
- * - Agent Message Bus (inter-agent communication)
- *
- * This enables multi-agent workflows with state and communication.
+ * Orchestrates multi-agent workflows using State + Bus + Bridge.
  */
 
-export * from './AgentOrchestrator.js';
+export { AgentOrchestrator } from './AgentOrchestrator.js';
+export type {
+  AgentWorkflow,
+  WorkflowStep,
+  WorkflowResult,
+  StepResult,
+  OrchestratorConfig
+} from './AgentOrchestrator.js';
