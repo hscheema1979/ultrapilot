@@ -16,24 +16,33 @@ cd ~/.claude/plugins/ultrapilot
 
 ## How It Works
 
-**From vps5, you can now:**
+**From vps5, you can now access EVERYTHING:**
 ```bash
-# Work on vps4's projects
+# Access local home directory
+cd ~/projects
+cd ~/.claude
+cd ~/oauth_tokens
+
+# Access vps4's entire home directory
+cd ~/remote/vps4/projects
+cd ~/remote/vps4/.claude
+cd ~/remote/vps4/oauth_tokens
+
+# Access vps3's entire home directory
+cd ~/remote/vps3/whatever-you-need
+
+# Work on remote workspaces
 cd ~/remote/vps4/projects/finance-trading
 /ultrapilot add new feature
 
-# Edit files on vps3
-nano ~/remote/vps3/oauth_tokens/README.md
-
-# Run commands on remote workspaces
-cd ~/remote/vps4/projects/ultra-plugin
-npm test
+# Edit remote files
+nano ~/remote/vps3/.bashrc
 ```
 
-**File paths:**
-- **Local**: `~/projects/`
-- **vps4**: `~/remote/vps4/`
-- **vps3**: `~/remote/vps3/`
+**File paths - FULL HOME DIRECTORIES:**
+- **Local (vps5)**: `~/` (everything)
+- **vps4**: `~/remote/vps4/` (entire home directory)
+- **vps3**: `~/remote/vps3/` (entire home directory)
 
 Each machine can access and modify ALL other machines' files as if they were local.
 
