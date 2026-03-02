@@ -13,7 +13,46 @@ import * as path from 'path';
 import { existsSync } from 'fs';
 
 /**
- * Domain configuration
+ * Agent definition with explicit agentic structure
+ */
+export interface AgentDefinition {
+  name: string;
+  role: string;
+  model: 'opus' | 'sonnet' | 'haiku';
+  capabilities: string[];
+  ownership: string[];
+  autonomous?: boolean;
+  coordination?: boolean;
+  parallel?: boolean;
+  reviewer?: boolean;
+  debugger?: boolean;
+  vetoPower?: boolean;
+}
+
+/**
+ * Routine definition with task list
+ */
+export interface RoutineDefinition {
+  name: string;
+  schedule: string;
+  enabled: boolean;
+  agent: string;
+  tasks: string[];
+  timeout?: number;
+  onFailure?: 'log-and-continue' | 'alert-and-escalate' | 'retry' | 'halt';
+}
+
+/**
+ * Quality gate definition
+ */
+export interface QualityGateDefinition {
+  name: string;
+  enabled: boolean;
+  checks: string[];
+}
+
+/**
+ * Domain configuration with explicit agentic structure
  */
 export interface DomainConfig {
   domainId: string;
@@ -30,7 +69,7 @@ export interface DomainConfig {
     mainBranch: string;
   };
 
-  agents: string[];
+  agents: AgentDefinition[];
 
   routing: {
     rules: Array<{
@@ -41,27 +80,32 @@ export interface DomainConfig {
     ownership: 'auto-assign' | 'manual' | 'round-robin';
   };
 
-  routines: Array<{
-    name: string;
-    schedule: 'hourly' | 'daily' | 'weekly' | 'on-change';
-    enabled: boolean;
-  }>;
-
-  qualityGates: {
-    testsMustPass: boolean;
-    lintMustPass: boolean;
-    buildMustSucceed: boolean;
-    securityScanMustPass: boolean;
+  priorityMatrix: {
+    levels: string[];
+    rules: Record<string, string[]>;
   };
+
+  routines: RoutineDefinition[];
+
+  queues: {
+    intake: string;
+    'in-progress': string;
+    review: string;
+    completed: string;
+    failed: string;
+  };
+
+  qualityGates: QualityGateDefinition[];
 
   autoloop: {
-    cycleTime: number; // seconds
     enabled: boolean;
-    startedAt: Date | null;
+    cycleTime: string;
+    mode: string;
+    heartbeatFile: string;
   };
 
-  createdAt: string;
-  version: string;
+  workspace: string;
+  [key: string]: any; // Allow domain-specific fields like tradingParameters, developmentParameters
 }
 
 /**
@@ -77,10 +121,11 @@ export interface DomainInitOptions {
   packageManager: string;
   testing: string;
 
-  agents: string[];
-  routines: Array<{ name: string; schedule: string }>;
+  agents: string[]; // Agent names (will be expanded to full definitions)
+  routines?: Array<{ name: string; schedule: string; agent?: string; tasks?: string[] }>;
 
-  qualityGates?: Partial<DomainConfig['qualityGates']>;
+  domainParameters?: Record<string, any>; // Domain-specific params (tradingParameters, developmentParameters, etc.)
+
   autoloopCycleTime?: number;
 }
 
@@ -184,11 +229,24 @@ export class DomainInitializer {
     console.log('✅ Domain initialized successfully');
     console.log(`   Domain: ${config.name}`);
     console.log(`   ID: ${config.domainId}`);
+    console.log(`   Type: ${config.type}`);
+    console.log(`   Agents: ${config.agents.length} configured`);
+    console.log(`   Routines: ${config.routines.length} scheduled`);
+    console.log('');
+    console.log('📋 Organizational Hierarchy:');
+    console.log('   CEO: You (Vision & Goals)');
+    console.log('   COO: Claude Code CLI (Architecture & Resources)');
+    console.log('   UltraLead: Domain Manager');
+    console.log('   Autoloop: VP of Operations (Heartbeat)');
+    console.log('   UltraWorkers: Autonomous Agents');
     console.log('');
     console.log('Next steps:');
-    console.log('  1. Start autoloop: /ultra-autoloop');
-    console.log('  2. Add tasks to intake queue');
-    console.log('  3. Use /ultrapilot for feature development');
+    console.log('  1. Review domain.json configuration');
+    console.log('  2. Start autoloop: /ultra-autoloop start');
+    console.log('  3. Add tasks to intake queue');
+    console.log('  4. Use /ultrapilot for feature development');
+    console.log('');
+    console.log('🪨 The boulder never stops.');
   }
 
   /**
@@ -199,7 +257,8 @@ export class DomainInitializer {
       this.ultraPath,
       path.join(this.ultraPath, 'queues'),
       path.join(this.ultraPath, 'routines'),
-      path.join(this.ultraPath, 'state')
+      path.join(this.ultraPath, 'state'),
+      path.join(this.ultraPath, 'shared')
     ];
 
     for (const dir of dirs) {
@@ -212,6 +271,9 @@ export class DomainInitializer {
    */
   private generateDomainConfig(options: DomainInitOptions): DomainConfig {
     const domainId = `domain-${options.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`;
+
+    // Expand agent names to full definitions
+    const agents = this.expandAgentDefinitions(options.agents);
 
     const config: DomainConfig = {
       domainId,
@@ -228,39 +290,303 @@ export class DomainInitializer {
         mainBranch: 'main'
       },
 
-      agents: options.agents,
+      agents,
 
       routing: {
         rules: this.getDefaultRoutingRules(options.agents),
         priority: 'priority-based',
-        ownership: 'auto-assign'
+        ownership: 'agent-ownership'
       },
 
-      routines: options.routines.map(r => ({
-        name: r.name,
-        schedule: r.schedule as any,
-        enabled: true
-      })),
+      priorityMatrix: this.getDefaultPriorityMatrix(),
 
-      qualityGates: {
-        testsMustPass: true,
-        lintMustPass: true,
-        buildMustSucceed: false,
-        securityScanMustPass: false,
-        ...options.qualityGates
+      routines: this.generateRoutines(options.routines, options.agents),
+
+      queues: {
+        intake: 'queues/intake.json',
+        'in-progress': 'queues/in-progress.json',
+        review: 'queues/review.json',
+        completed: 'queues/completed.json',
+        failed: 'queues/failed.json'
       },
+
+      qualityGates: this.getDefaultQualityGates(),
 
       autoloop: {
-        cycleTime: options.autoloopCycleTime || 60,
-        enabled: false,
-        startedAt: null
+        enabled: true,
+        cycleTime: `${options.autoloopCycleTime || 30}s`,
+        mode: 'continuous',
+        heartbeatFile: '.ultra/state/autoloop.json'
       },
 
-      createdAt: new Date().toISOString(),
-      version: '1.0.0'
+      workspace: this.workspacePath,
+
+      ...options.domainParameters // Allow domain-specific parameters
     };
 
     return config;
+  }
+
+  /**
+   * Expand agent names to full definitions with explicit agentic structure
+   */
+  private expandAgentDefinitions(agentNames: string[]): AgentDefinition[] {
+    return agentNames.map(name => {
+      const def = this.getAgentMetadata(name);
+      return {
+        name,
+        role: def.role,
+        model: def.model,
+        capabilities: def.capabilities,
+        ownership: def.ownership,
+        autonomous: def.autonomous,
+        ...def.flags
+      };
+    });
+  }
+
+  /**
+   * Get agent metadata from catalog
+   */
+  private getAgentMetadata(agentName: string): {
+    role: string;
+    model: 'opus' | 'sonnet' | 'haiku';
+    capabilities: string[];
+    ownership: string[];
+    autonomous: boolean;
+    flags?: Record<string, boolean>;
+  } {
+    // Agent catalog with explicit roles and capabilities
+    const catalog: Record<string, any> = {
+      'ultra:team-lead': {
+        role: 'Team Orchestration',
+        model: 'opus',
+        capabilities: ['team-orchestration', 'work-decomposition', 'lifecycle-management', 'resource-allocation'],
+        ownership: ['.ultra/queues/*', '.ultra/state/*', 'agent-coordination'],
+        autonomous: true,
+        flags: { coordination: true }
+      },
+      'ultra:team-implementer': {
+        role: 'Parallel Implementation',
+        model: 'sonnet',
+        capabilities: ['parallel-implementation', 'file-ownership', 'feature-development'],
+        ownership: ['src/**/*.ts', 'skills/**/*', 'lib/**/*'],
+        autonomous: true,
+        flags: { parallel: true }
+      },
+      'ultra:team-reviewer': {
+        role: 'Multi-Dimensional Review',
+        model: 'sonnet',
+        capabilities: ['security-review', 'quality-review', 'architecture-review'],
+        ownership: ['code-review', 'quality-gates'],
+        autonomous: true,
+        flags: { reviewer: true }
+      },
+      'ultra:team-debugger': {
+        role: 'Debugging & Fix Verification',
+        model: 'sonnet',
+        capabilities: ['root-cause-analysis', 'hypothesis-testing', 'fix-verification'],
+        ownership: ['bug-fixing', 'test-failures'],
+        autonomous: true,
+        flags: { debugger: true }
+      },
+      'ultra:executor': {
+        role: 'Feature Implementation',
+        model: 'sonnet',
+        capabilities: ['feature-development', 'api-endpoints', 'business-logic'],
+        ownership: ['src/**/*.ts', 'lib/**/*.ts']
+      },
+      'ultra:test-engineer': {
+        role: 'Test Engineering',
+        model: 'sonnet',
+        capabilities: ['test-strategy', 'test-implementation', 'coverage-analysis'],
+        ownership: ['tests/**/*', '**/*.test.ts', '**/*.spec.ts'],
+        autonomous: true
+      },
+      'ultra:debugger': {
+        role: 'Root Cause Analysis',
+        model: 'sonnet',
+        capabilities: ['error-analysis', 'stack-trace-analysis', 'fix-verification'],
+        ownership: ['bug-fixes', 'error-investigation']
+      },
+      'ultra:code-reviewer': {
+        role: 'Code Quality Review',
+        model: 'opus',
+        capabilities: ['code-review', 'maintainability-analysis', 'anti-pattern-detection'],
+        ownership: ['code-quality', 'refactoring'],
+        autonomous: true,
+        flags: { reviewer: true }
+      },
+      'ultra:security-reviewer': {
+        role: 'Security Assessment',
+        model: 'sonnet',
+        capabilities: ['security-audit', 'vulnerability-scan', 'auth-validation'],
+        ownership: ['security-validation'],
+        autonomous: true,
+        flags: { reviewer: true, vetoPower: true }
+      },
+      'ultra:quality-reviewer': {
+        role: 'Performance & Quality',
+        model: 'sonnet',
+        capabilities: ['performance-analysis', 'production-readiness', 'optimization'],
+        ownership: ['performance-validation', 'optimization'],
+        autonomous: true,
+        flags: { reviewer: true }
+      },
+      // Trading domain agents
+      'ultra:quant-analyst': {
+        role: 'Strategy Development',
+        model: 'opus',
+        capabilities: ['strategy-development', 'backtesting', 'signal-analysis', 'statistical-arbitrage'],
+        ownership: ['strategy-logic', 'signal-generation', 'backtesting', 'performance-analysis'],
+        autonomous: true
+      },
+      'ultra:risk-manager': {
+        role: 'Risk Management',
+        model: 'opus',
+        capabilities: ['var-calculation', 'position-sizing', 'circuit-breakers', 'risk-aggregation'],
+        ownership: ['risk-limits', 'circuit-breakers', 'position-sizing', 'exposure-monitoring'],
+        autonomous: true,
+        flags: { vetoPower: true }
+      },
+      'ultra:trading-architect': {
+        role: 'System Architecture',
+        model: 'opus',
+        capabilities: ['system-design', 'broker-integration', 'data-pipeline', 'execution-engine'],
+        ownership: ['infrastructure-design', 'broker-apis', 'data-pipelines']
+      },
+      'ultra:execution-developer': {
+        role: 'Broker Integration',
+        model: 'sonnet',
+        capabilities: ['broker-api-integration', 'order-routing', 'execution-algorithms'],
+        ownership: ['order-execution', 'broker-connections', 'oauth-management']
+      }
+    };
+
+    return catalog[agentName] || {
+      role: 'General Agent',
+      model: 'sonnet',
+      capabilities: ['general-purpose'],
+      ownership: [],
+      autonomous: false
+    };
+  }
+
+  /**
+   * Generate routines with explicit task lists
+   */
+  private generateRoutines(
+    customRoutines: Array<{ name: string; schedule: string; agent?: string; tasks?: string[] }> | undefined,
+    agents: string[]
+  ): RoutineDefinition[] {
+    const defaults: RoutineDefinition[] = [];
+
+    // Add domain-health-check if team-lead is present
+    if (agents.includes('ultra:team-lead')) {
+      defaults.push({
+        name: 'domain-health-check',
+        schedule: 'every 30s',
+        enabled: true,
+        agent: 'ultra:team-lead',
+        tasks: [
+          'Check .ultra/queues/intake.json for new tasks',
+          'Review .ultra/state/autoloop.json for cycle health',
+          'Verify all autonomous agents are responsive',
+          'Check for stuck tasks in in-progress queue',
+          'Report domain health status to .ultra/state/health.json'
+        ],
+        timeout: 10,
+        onFailure: 'log-and-continue'
+      });
+    }
+
+    // Map custom routines
+    const mapped = (customRoutines || []).map(r => ({
+      name: r.name,
+      schedule: r.schedule,
+      enabled: true,
+      agent: r.agent || this.inferAgentForRoutine(r.name, agents),
+      tasks: r.tasks || ['Execute routine tasks'],
+      timeout: 15,
+      onFailure: 'log-and-continue'
+    }));
+
+    return [...defaults, ...mapped];
+  }
+
+  /**
+   * Infer appropriate agent for a routine
+   */
+  private inferAgentForRoutine(routineName: string, agents: string[]): string {
+    const mapping: Record<string, string> = {
+      'test': 'ultra:test-engineer',
+      'security': 'ultra:security-reviewer',
+      'quality': 'ultra:quality-reviewer',
+      'performance': 'ultra:quality-reviewer',
+      'health': 'ultra:team-lead'
+    };
+
+    for (const [key, agent] of Object.entries(mapping)) {
+      if (routineName.toLowerCase().includes(key) && agents.includes(agent)) {
+        return agent;
+      }
+    }
+
+    return agents[0] || 'ultra:team-lead';
+  }
+
+  /**
+   * Get default priority matrix
+   */
+  private getDefaultPriorityMatrix() {
+    return {
+      levels: ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'],
+      rules: {
+        CRITICAL: ['security-vulnerability', 'data-loss', 'system-down', 'autoloop-stopped', 'risk-limit-breached'],
+        HIGH: ['test-failure', 'bug-fix', 'performance-issue', 'build-broken', 'live-trading'],
+        MEDIUM: ['feature-development', 'test-coverage', 'documentation', 'signal-generation', 'position-monitor'],
+        LOW: ['code-cleanup', 'optimization', 'minor-refactor', 'analysis', 'reporting']
+      }
+    };
+  }
+
+  /**
+   * Get default quality gates
+   */
+  private getDefaultQualityGates(): QualityGateDefinition[] {
+    return [
+      {
+        name: 'implementation-validation',
+        enabled: true,
+        checks: [
+          'Code follows language best practices',
+          'No build errors',
+          'No lint violations',
+          'File ownership boundaries respected',
+          'All tests passing'
+        ]
+      },
+      {
+        name: 'security-validation',
+        enabled: true,
+        checks: [
+          'No exposed secrets or credentials',
+          'Dependencies up to date with no critical vulnerabilities',
+          'Authentication and authorization properly implemented',
+          'Input validation and sanitization in place'
+        ]
+      },
+      {
+        name: 'performance-validation',
+        enabled: true,
+        checks: [
+          'No obvious memory leaks',
+          'Response times within acceptable bounds',
+          'No excessive resource consumption',
+          'Database queries optimized (if applicable)'
+        ]
+      }
+    ];
   }
 
   /**
@@ -270,12 +596,31 @@ export class DomainInitializer {
     const rules: Array<{ pattern: string; agent: string }> = [];
 
     const agentPatterns: Record<string, string[]> = {
-      'ultra-executor': ['feature', 'implement', 'add', 'create'],
-      'ultra-debugging': ['bug', 'fix', 'error', 'issue'],
-      'ultra-code-review': ['refactor', 'clean', 'optimize'],
-      'ultra-security-reviewer': ['security', 'auth', 'vulnerability'],
-      'ultra-test-engine': ['test', 'spec', 'coverage'],
-      'ultra-quality-reviewer': ['performance', 'slow', 'memory']
+      // Team coordination
+      'ultra:team-lead': ['orchestrate', 'coordinate', 'team', 'domain', 'workflow'],
+
+      // Development
+      'ultra:team-implementer': ['feature', 'implement', 'add', 'create', 'build'],
+      'ultra:executor': ['feature', 'implement', 'add', 'create', 'build'],
+
+      // Quality & Testing
+      'ultra:test-engineer': ['test', 'spec', 'coverage', 'qa'],
+      'ultra:team-reviewer': ['review', 'refactor', 'clean'],
+      'ultra:code-reviewer': ['review', 'refactor', 'clean'],
+
+      // Debugging
+      'ultra:team-debugger': ['bug', 'fix', 'error', 'issue', 'failure'],
+      'ultra:debugger': ['bug', 'fix', 'error', 'issue', 'failure'],
+
+      // Security & Performance
+      'ultra:security-reviewer': ['security', 'auth', 'vulnerability', 'secret'],
+      'ultra:quality-reviewer': ['performance', 'slow', 'memory', 'optimize'],
+
+      // Trading domain
+      'ultra:quant-analyst': ['strategy', 'signal', 'backtest', 'quant', 'analysis'],
+      'ultra:risk-manager': ['risk', 'var', 'position', 'circuit', 'exposure', 'limit'],
+      'ultra:trading-architect': ['architecture', 'infrastructure', 'design', 'system'],
+      'ultra:execution-developer': ['broker', 'order', 'execution', 'oauth', 'tradier', 'schwab']
     };
 
     for (const agent of agents) {
@@ -329,15 +674,18 @@ export class DomainInitializer {
       );
     }
 
-    // Create routine configurations
+    // Create routine configurations (explicit agentic format)
     for (const routine of config.routines) {
       const routineConfig = {
         name: routine.name,
         schedule: routine.schedule,
-        command: this.getRoutineCommand(routine.name, config.stack.packageManager),
         enabled: routine.enabled,
+        agent: routine.agent,
         lastRun: null,
-        failures: 0
+        tasks: routine.tasks,
+        timeout: routine.timeout || 15,
+        onFailure: routine.onFailure || 'log-and-continue',
+        failures: null
       };
 
       await fs.writeFile(
@@ -354,19 +702,8 @@ export class DomainInitializer {
         pid: null,
         startedAt: null,
         cycleCount: 0,
-        lastCycle: null
-      }, null, 2)
-    );
-
-    // Create heartbeat state
-    await fs.writeFile(
-      path.join(this.ultraPath, 'state', 'heartbeat.json'),
-      JSON.stringify({
-        status: 'idle',
-        uptime: 0,
-        cyclesCompleted: 0,
-        tasksProcessed: 0,
-        lastError: null
+        lastCycle: null,
+        lastCycleDuration: null
       }, null, 2)
     );
 
@@ -384,20 +721,6 @@ queues/*.json
 *.json
 `
     );
-  }
-
-  /**
-   * Get command for a routine
-   */
-  private getRoutineCommand(routineName: string, packageManager: string): string {
-    const commands: Record<string, string> = {
-      'test-suite-health': `${packageManager} test`,
-      'dependency-check': `${packageManager} outdated`,
-      'git-sync': 'git add -A && git commit -m "Auto-commit" && git push',
-      'lint-check': `${packageManager} run lint`
-    };
-
-    return commands[routineName] || 'echo "No command configured"';
   }
 
   /**
