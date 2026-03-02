@@ -9,12 +9,30 @@ cd "$SCRIPT_DIR"
 
 # Get Tailscale hostname if available
 if command -v tailscale &> /dev/null; then
-    THIS_HOST=$(tailscale status --self 2>/dev/null | grep -v 'Status:' | head -1 | awk '{print $2}' | cut -d'.' -f1)
+    THIS_HOST=$(tailscale status --self 2>/dev/null | grep -v 'Status:' | head -1 | awk '{print $2}')
 else
     THIS_HOST=$(hostname)
 fi
 
-PEERS=("vps5" "vps4" "vps3")
+# Discover peers via Tailscale tags
+echo "Discovering peers via Tailscale..."
+if command -v tailscale &> /dev/null; then
+    # Get all active peers with tag:vps
+    PEERS=$(tailscale status 2>/dev/null | grep -E 'tag:vps|#tag:vps' | awk '{print $2}' | cut -d':' -f2 | cut -d',' -f1)
+
+    if [ -z "$PEERS" ]; then
+        # Fallback to common VPS names if no tags found
+        PEERS=$(tailscale status 2>/dev/null | grep -E 'vps[0-9]' | awk '{print $2}')
+    fi
+
+    # Convert to array
+    PEER_ARRAY=($PEERS)
+else
+    # Fallback without Tailscale
+    PEER_ARRAY=("vps5" "vps4" "vps3")
+fi
+
+echo "Found ${#PEER_ARRAY[@]} peers: ${PEER_ARRAY[*]}"
 
 # Colors
 GREEN='\033[0;32m'
@@ -34,14 +52,14 @@ echo "║   🌐 MOUNTING PEER DIRECTORIES                               ║"
 echo "╚═══════════════════════════════════════════════════════════════╝"
 echo ""
 log "This host: $THIS_HOST"
-log "Peers: ${PEERS[*]}"
+log "Peers: ${PEER_ARRAY[*]}"
 echo ""
 
 # Create remote mount directory
 mkdir -p ~/remote
 
 # Mount each peer's home directory
-for peer in "${PEERS[@]}"; do
+for peer in "${PEER_ARRAY[@]}"; do
     # Skip if peer is this machine
     if [ "$peer" = "$THIS_HOST" ]; then
         log "$peer is this machine, skipping..."
@@ -84,7 +102,7 @@ echo ""
 
 log "Directory access:"
 echo "  Local:    ~/"
-for peer in "${PEERS[@]}"; do
+for peer in "${PEER_ARRAY[@]}"; do
     if [ "$peer" != "$THIS_HOST" ]; then
         echo "  $peer:     ~/remote/$peer/"
     fi
