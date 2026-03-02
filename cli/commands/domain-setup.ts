@@ -105,18 +105,15 @@ For more information, see: https://github.com/ultrapilot/ultrapilot-plugin
       await initializer.initialize({
         name: config.name,
         description: config.description || '',
-        type: config.type || 'web-api',
+        type: config.type || 'software-dev',
         language: config.stack?.language || 'TypeScript',
         framework: config.stack?.framework || 'Express',
         packageManager: config.stack?.packageManager || 'npm',
         testing: config.stack?.testing || 'Jest',
-        agents: config.agents || ['ultra-executor'],
-        routines: config.routines || [
-          { name: 'test-suite-health', schedule: 'hourly' },
-          { name: 'dependency-check', schedule: 'daily' }
-        ],
-        qualityGates: config.qualityGates,
-        autoloopCycleTime: config.autoloop?.cycleTime
+        agents: config.agents || ['ultra:team-lead', 'ultra:team-implementer', 'ultra:test-engineer'],
+        routines: config.routines || [],
+        domainParameters: config.domainParameters || { goals: 'Domain operation and management' },
+        autoloopCycleTime: config.autoloop?.cycleTime ? parseInt(config.autoloop.cycleTime) : 30
       });
 
       process.exit(0);
@@ -161,13 +158,31 @@ For more information, see: https://github.com/ultrapilot/ultrapilot-plugin
     console.log('\n📋 Domain Identity');
     console.log('─────────────────────────────────');
 
-    const name = await question('Domain name (e.g., ecommerce-api): ');
+    const name = await question('Domain name (e.g., quantitative-trading, ultra-dev): ');
     if (!name.trim()) {
       console.error('❌ Domain name is required');
       process.exit(1);
     }
 
     const description = await question('Description: ');
+
+    console.log('\n🎯 Domain Goals & Vision');
+    console.log('─────────────────────────────────');
+    console.log('What is this domain\'s primary purpose?');
+    console.log('  Example: "Algorithmic trading system for SPX options"');
+    console.log('  Example: "UltraPilot framework development and testing"');
+    console.log('  Example: "Personal assistant for research and writing"');
+    const goals = await question('Domain goals: ');
+
+    console.log('\n🏷️  Domain Type');
+    console.log('─────────────────────────────────');
+    console.log('Common types:');
+    console.log('  - software-dev (Software development)');
+    console.log('  - quantitative-trading (Trading systems)');
+    console.log('  - research (Research & analysis)');
+    console.log('  - personal-assistant (Personal tasks)');
+    console.log('  - full-stack (Web applications)');
+    const type = await question('Domain type [software-dev]: ') || 'software-dev';
 
     console.log('\n💻 Tech Stack');
     console.log('─────────────────────────────────');
@@ -180,40 +195,78 @@ For more information, see: https://github.com/ultrapilot/ultrapilot-plugin
     console.log('\n🤖 Agents');
     console.log('─────────────────────────────────');
     console.log('Available agents:');
-    console.log('  - ultra-executor (implementation)');
-    console.log('  - ultra-test-engine (testing)');
-    console.log('  - ultra-debugging (bug fixing)');
-    console.log('  - ultra-code-review (review)');
-    console.log('  - ultra-security-reviewer (security)');
-    console.log('  - ultra-quality-reviewer (performance)');
+    console.log('  TEAM COORDINATION:');
+    console.log('  - ultra:team-lead (orchestration)');
+    console.log('  - ultra:team-implementer (parallel implementation)');
+    console.log('  - ultra:team-reviewer (multi-dimensional review)');
+    console.log('  - ultra:team-debugger (hypothesis-driven debugging)');
+    console.log('');
+    console.log('  SPECIALIST:');
+    console.log('  - ultra:executor (implementation)');
+    console.log('  - ultra:test-engineer (testing)');
+    console.log('  - ultra:debugger (root cause analysis)');
+    console.log('  - ultra:code-reviewer (code quality)');
+    console.log('  - ultra:security-reviewer (security + veto power)');
+    console.log('  - ultra:quality-reviewer (performance)');
+    console.log('');
+    console.log('  TRADING DOMAIN:');
+    console.log('  - ultra:quant-analyst (strategy development)');
+    console.log('  - ultra:risk-manager (risk management + veto power)');
+    console.log('  - ultra:trading-architect (system architecture)');
+    console.log('  - ultra:execution-developer (broker integration)');
 
-    const agentsInput = await question('Enable agents [all]: ') || 'all';
-    const agents = agentsInput === 'all'
-      ? ['ultra-executor', 'ultra-test-engine', 'ultra-debugging', 'ultra-code-review', 'ultra-security-reviewer', 'ultra-quality-reviewer']
-      : agentsInput.split(',').map(a => a.trim());
+    const agentsInput = await question('Enable agents [ultra:team-lead,ultra:team-implementer,ultra:test-engineer]: ')
+      || 'ultra:team-lead,ultra:team-implementer,ultra:test-engineer';
+    const agents = agentsInput.split(',').map(a => a.trim());
 
     console.log('\n⏰ Routines');
     console.log('─────────────────────────────────');
+    console.log('Leave empty to use default routines for your agents');
+    const routinesInput = await question('Custom routines (name:schedule, comma-separated): ');
+    const routines = routinesInput.trim()
+      ? routinesInput.split(',').map(r => {
+          const [name, schedule] = r.trim().split(':');
+          return { name: name.trim(), schedule: (schedule || 'hourly').trim() };
+        })
+      : [];
 
-    const routinesInput = await question('Enable routines [test-suite-health,lint-check]: ') || 'test-suite-health,lint-check';
-    const routines = routinesInput.split(',').map(r => {
-      const [name, schedule] = r.trim().split(':');
-      return { name, schedule: schedule || 'hourly' };
-    });
+    console.log('\n⚙️  Domain-Specific Properties');
+    console.log('─────────────────────────────────');
+    console.log('Enter any domain-specific parameters as JSON');
+    console.log('Example for trading: {"tradingParameters": {"mode": "PAPER", "underlying": "SPX"}}');
+    console.log('Example for dev: {"developmentParameters": {"mode": "ACTIVE", "testCoverageTarget": 80}}');
+    console.log('Leave empty if none');
+    const domainParamsInput = await question('Domain properties (JSON): ');
+
+    let domainParameters: Record<string, any> = {};
+    if (domainParamsInput.trim()) {
+      try {
+        domainParameters = JSON.parse(domainParamsInput);
+        // Also add goals to domain parameters
+        domainParameters.goals = goals;
+      } catch (e) {
+        console.warn('⚠️  Invalid JSON, skipping domain properties');
+        domainParameters = { goals };
+      }
+    } else {
+      domainParameters = { goals };
+    }
 
     rl.close();
 
-    // Initialize domain
+    // Initialize domain with user-provided goals and properties
     await initializer.initialize({
       name,
       description,
-      type: 'web-api',
+      type,
       language,
       framework,
       packageManager,
       testing,
       agents,
-      routines
+      routines,
+      domainParameters,
+      autoloopCycleTime: 30
     });
 
     console.log(`
@@ -221,17 +274,31 @@ For more information, see: https://github.com/ultrapilot/ultrapilot-plugin
 
 ✅ Domain initialized successfully!
 
+Domain: ${name}
+Type: ${type}
+Goals: ${goals}
+
+📋 Organizational Hierarchy:
+   CEO: You (Vision & Goals)
+   COO: Claude Code CLI (Architecture & Resources)
+   UltraLead: Domain Manager (${name})
+   Autoloop: VP of Operations (Heartbeat)
+   UltraWorkers: ${agents.length} autonomous agents configured
+
 Next steps:
-  1. Start the persistent autoloop:
-     /ultra-autoloop
+  1. Review your domain configuration:
+     cat .ultra/domain.json
 
-  2. Add tasks to the intake queue:
-     echo '{"title": "My first task"}' > .ultra/queues/intake.json
+  2. Start the persistent autoloop:
+     /ultra-autoloop start
 
-  3. Monitor domain heartbeat:
-     cat .ultra/state/heartbeat.json
+  3. Add tasks to the intake queue:
+     echo '{"title": "My first task", "description": "..."}' > .ultra/queues/intake.json
 
-"The boulder never stops." 🪨
+  4. Monitor domain health:
+     cat .ultra/state/autoloop.json
+
+🪨  "The boulder never stops."
 
 ═══════════════════════════════════════════════════════════════
 `);
