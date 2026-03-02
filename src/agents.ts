@@ -310,12 +310,12 @@ export function listAgentsByCategory(category: 'orchestration' | 'implementation
 }
 
 /**
- * Load wshobson agents into AGENT_CATALOG
+ * Load specialist agents from the agent library into AGENT_CATALOG
  *
- * Scans the wshobson-agents/plugins directory and merges all 113+ specialist agents
+ * Scans the agents-lib/plugins directory and merges all 113+ specialist agents
  * into the UltraPilot AGENT_CATALOG for use by orchestrator agents.
  *
- * @param pluginsDir - Path to wshobson plugins directory (default: ./wshobson-agents/plugins)
+ * @param pluginsDir - Path to agent library plugins directory (default: ./agents-lib/plugins)
  * @returns Number of agents loaded
  *
  * @example
@@ -323,15 +323,15 @@ export function listAgentsByCategory(category: 'orchestration' | 'implementation
  * import { loadWshobsonAgents, AGENT_CATALOG } from './agents.js';
  *
  * const count = await loadWshobsonAgents();
- * console.log(`Loaded ${count} wshobson agents`);
+ * console.log(`Loaded ${count} specialist agents`);
  * console.log(`Total agents: ${Object.keys(AGENT_CATALOG).length}`);
  * ```
  */
 export async function loadWshobsonAgents(
-  pluginsDir: string = './wshobson-agents/plugins'
+  pluginsDir: string = './agents-lib/plugins'
 ): Promise<number> {
   try {
-    const { createInMemoryRepository } = await import('./wshobson/repositories/index.js');
+    const { createInMemoryRepository } = await import('./agents-lib/repositories/index.js');
     const path = await import('path');
     const url = await import('url');
 
@@ -425,7 +425,7 @@ export async function initializeUltraPilot(options?: {
   loadWshobson?: boolean;
   wshobsonPluginsDir?: string;
 }): Promise<number> {
-  const { loadWshobson = true, wshobsonPluginsDir = './wshobson-agents/plugins' } = options || {};
+  const { loadWshobson = true, wshobsonPluginsDir = './agents-lib/plugins' } = options || {};
 
   console.log('[UltraPilot] Initializing agent catalog...');
 

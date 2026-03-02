@@ -227,7 +227,7 @@ import { initializeUltraPilot } from './src/index.js';
 // Load all 142 agents
 const total = await initializeUltraPilot({
   loadWshobson: true,
-  wshobsonPluginsDir: './wshobson-agents/plugins'
+  wshobsonPluginsDir: './agents-lib/plugins'
 });
 
 console.log(`Initialized ${total} agents`);

@@ -16,7 +16,7 @@ import { initializeUltraPilot, AGENT_CATALOG } from './src/index.js';
 // Initialize with wshobson agents
 const totalAgents = await initializeUltraPilot({
   loadWshobson: true,
-  wshobsonPluginsDir: './wshobson-agents/plugins'
+  wshobsonPluginsDir: './agents-lib/plugins'
 });
 
 console.log(`Initialized ${totalAgents} agents`);

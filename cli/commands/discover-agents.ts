@@ -3,17 +3,17 @@
 /**
  * ultra-discover-agents CLI Command
  *
- * Discovers and catalogs all wshobson agents
+ * Discovers and catalogs all specialist agents from the agents library
  */
 
-import { createInMemoryRepository } from '../../src/wshobson/repositories/in-memory.js';
+import { createInMemoryRepository } from '../../src/agents-lib/repositories/in-memory.js';
 
 const WSHOBSON_PLUGINS_DEFAULT = process.env.WSHOBSON_AGENTS_PATH ||
-  './wshobson-agents/plugins';
+  './agents-lib/plugins';
 
 async function main() {
   console.log('╔═══════════════════════════════════════════════════════════╗');
-  console.log('║         wshobson Agent Discovery                                 ║');
+  console.log('║         Agent Library Discovery                                 ║');
   console.log('╚═══════════════════════════════════════════════════════════╝');
   console.log();
 
