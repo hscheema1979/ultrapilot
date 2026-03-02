@@ -287,25 +287,45 @@ export class UltraXServer {
    */
   async start(): Promise<void> {
     const port = this.config.port || 3001;
-    const host = process.env.HOST || 'localhost'; // Use HOST from env or default to localhost
+    // Default to 0.0.0.0 for Tailscale alias and external access
+    const host = process.env.HOST || '0.0.0.0';
 
     return new Promise((resolve) => {
       this.app.listen(port, host, () => {
         console.log(`\n🚀 UltraX Server started`);
-        console.log(`📡 HTTP API: http://${host === '0.0.0.0' ? '0.0.0.0' : host}:${port}`);
+        console.log(`📡 HTTP API: http://${host}:${port}`);
         console.log(`🔌 Gateway: /api/gateway`);
         console.log(`💬 Google Chat Webhook: /webhook/google-chat`);
         console.log(`🌐 Relay Integration: ${this.config.relayUrl}`);
-        if (host === '0.0.0.0') {
-          console.log(`🌍 Network Access: ENABLED (all interfaces)`);
-          try {
-            const { execSync } = require('child_process');
-            const ip = execSync('hostname -I | awk \'{print $1\'').toString().trim();
-            console.log(`🔗 External URL: http://${ip}:${port}`);
-          } catch (e) {
-            // Ignore if command fails
+
+        // Show network access info
+        console.log(`🌍 Network Access: ENABLED (all interfaces)`);
+        try {
+          const { execSync } = require('child_process');
+
+          // Get all IPs
+          const ips = execSync('hostname -I').toString().trim().split(/\s+/);
+          if (ips.length > 0) {
+            console.log(`🔗 Local IPs: ${ips.map(ip => `http://${ip}:${port}`).join(', ')}`);
           }
+
+          // Try to get Tailscale IP
+          try {
+            const tailscaleIp = execSync('ip addr show tailscale0 2>/dev/null | grep "inet " | awk \'{print $2\'} | cut -d/ -f1').toString().trim();
+            if (tailscaleIp) {
+              console.log(`🦎 Tailscale: http://${tailscaleIp}:${port}`);
+            }
+          } catch (e) {
+            // Tailscale not configured or no device
+          }
+
+          // Try to get hostname
+          const hostname = execSync('hostname').toString().trim();
+          console.log(`🖥️  Hostname: http://${hostname}:${port}`);
+        } catch (e) {
+          // Ignore if commands fail
         }
+
         if (this.config.googleChat) {
           console.log(`✅ Google Chat bot enabled`);
         }
