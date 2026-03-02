@@ -49,6 +49,25 @@ export {
   type AgentBridgeConfig
 } from './AgentBridge.js';
 
+// Export DomainInitializer and related types
+export {
+  DomainInitializer,
+  createDomainInitializer,
+  type DomainConfig,
+  type DomainInitOptions,
+  type DomainValidation
+} from './DomainInitializer.js';
+
+// Export AutoloopDaemon and related types
+export {
+  AutoloopDaemon,
+  createAutoloopDaemon,
+  runAutoloopDaemon,
+  type AutoloopConfig,
+  type AutoloopState,
+  type HeartbeatState
+} from './AutoloopDaemon.js';
+
 /**
  * Default export - DomainManager class
  */
