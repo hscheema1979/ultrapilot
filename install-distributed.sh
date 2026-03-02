@@ -1,14 +1,44 @@
 #!/bin/bash
 # Install Ultrapilot as distributed peer
-# Run on each machine (vps5, vps4, vps3)
+# Run on each machine
+#
+# REQUIREMENTS:
+# - Tailscale installed and running
+# - All VPS machines tagged with: tag:vps
+#   (In Tailscale admin console: Machines -> Edit -> Assign tag "vps")
+# - SSH key authentication set up between peers
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-THIS_HOST=$(hostname)
-PEERS=("vps5" "vps4" "vps3")
+# Get Tailscale hostname if available
+if command -v tailscale &> /dev/null; then
+    THIS_HOST=$(tailscale status --self 2>/dev/null | grep -v 'Status:' | head -1 | awk '{print $2}')
+else
+    THIS_HOST=$(hostname)
+fi
+
+# Discover peers via Tailscale tags (auto-discovery)
+log "Discovering peers via Tailscale tags..."
+if command -v tailscale &> /dev/null; then
+    # Get all active peers with tag:vps
+    PEERS=$(tailscale status 2>/dev/null | grep -E 'tag:vps|#tag:vps' | awk '{print $2}' | cut -d':' -f2 | cut -d',' -f1)
+
+    if [ -z "$PEERS" ]; then
+        # Fallback to common VPS names if no tags found
+        PEERS=$(tailscale status 2>/dev/null | grep -E 'vps[0-9]' | awk '{print $2}')
+    fi
+
+    # Convert to array
+    PEER_ARRAY=($PEERS)
+else
+    # Fallback without Tailscale
+    PEER_ARRAY=("vps5" "vps4" "vps3" "vps2" "vps1")
+fi
+
+log "Found ${#PEER_ARRAY[@]} peers: ${PEER_ARRAY[*]}"
 
 # Colors
 GREEN='\033[0;32m'
@@ -38,15 +68,10 @@ echo "║   🌐 DISTRIBUTED ULTRAPILOT INSTALLATION                    ║"
 echo "╚═══════════════════════════════════════════════════════════════╝"
 echo ""
 log "Installing on: $THIS_HOST"
-log "Peers: ${PEERS[*]}"
+log "Peers: ${PEER_ARRAY[*]}"
 echo ""
 
-# Check if this is a known peer
-if [[ ! " ${PEERS[@]} " =~ " ${THIS_HOST} " ]]; then
-    log_error "Unknown hostname: $THIS_HOST"
-    log_error "Expected one of: ${PEERS[*]}"
-    exit 1
-fi
+# No hostname validation needed - auto-discovery handles it
 
 # Step 1: Install dependencies
 log ""
@@ -87,7 +112,7 @@ fi
 
 # Copy key to all peers
 log "Copying SSH key to peers..."
-for peer in "${PEERS[@]}"; do
+for peer in "${PEER_ARRAY[@]}"; do
     if [ "$peer" != "$THIS_HOST" ]; then
         log "  Copying to $peer..."
 
@@ -139,54 +164,112 @@ sudo systemctl start ultrapilot-mounts.service
 
 log_success "Systemd service created and enabled"
 
-# Step 6: Start UltraX Gateway
+# Step 6: Setup UltraX Gateway (PM2 managed)
 log ""
-log "Step 6: Starting UltraX Gateway..."
+log "Step 6: Setting up UltraX Gateway..."
 
-# Check if already running
-if pgrep -f "node.*server.ts" > /dev/null; then
-    log "Gateway already running"
-else
-    # Build and start
-    if [ -f "package.json" ]; then
-        npm install
-        npm run build || true
-    fi
-
-    # Start Gateway
-    nohup node dist/server.js > .ultra/state/gateway.log 2>&1 &
-    GATEWAY_PID=$!
-    echo $GATEWAY_PID > .ultra/state/gateway.pid
-
-    log_success "Gateway started (PID: $GATEWAY_PID)"
+# Install dependencies if needed
+if [ -f "package.json" ]; then
+    log "Installing Gateway dependencies..."
+    npm install --silent
 fi
 
-# Step 7: Start Relay (if available)
+# Check if PM2 is installed
+if ! command -v pm2 &> /dev/null; then
+    log "Installing PM2..."
+    npm install -g pm2
+fi
+
+# Create Gateway PM2 config if it doesn't exist
+if [ ! -f "gateway.ecosystem.config.cjs" ]; then
+    log "Creating Gateway PM2 configuration..."
+    cat > gateway.ecosystem.config.cjs <<'EOF'
+module.exports = {
+  apps: [{
+    name: 'ultrapilot-gateway',
+    script: 'src/server.ts',
+    cwd: '/home/ubuntu/.claude/plugins/ultrapilot',
+    interpreter: 'node',
+    interpreter_args: '--require /home/ubuntu/.npm/_npx/tsx/dist/preflight.cjs --import tsx/dist/loader.mjs',
+    instances: 1,
+    autorestart: true,
+    watch: false,
+    max_memory_restart: '500M',
+    min_uptime: '10s',
+    max_restarts: 10,
+    restart_delay: 4000,
+    env: {
+      NODE_ENV: 'production',
+      PORT: 3001
+    },
+    error_file: '/home/ubuntu/.claude/plugins/ultrapilot/.ultra/state/gateway-error.log',
+    out_file: '/home/ubuntu/.claude/plugins/ultrapilot/.ultra/state/gateway-out.log',
+    log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+    merge_logs: true,
+    kill_timeout: 5000,
+    autostart: true
+  }]
+};
+EOF
+fi
+
+# Start or restart Gateway with PM2
+if pm2 describe ultrapilot-gateway >/dev/null 2>&1; then
+    log "Gateway already in PM2, restarting..."
+    pm2 restart gateway.ecosystem.config.cjs
+else
+    log "Starting Gateway with PM2..."
+    pm2 start gateway.ecosystem.config.cjs
+fi
+
+pm2 save --force
+log_success "Gateway running with PM2 (port 3001)"
+
+# Step 7: Setup UltraX Relay (PM2 managed)
 log ""
-log "Step 7: Starting Relay Web UI..."
+log "Step 7: Setting up UltraX Relay Web UI..."
 
-if [ -d ~/.claude-web-interfaces/claude-relay ]; then
-    cd ~/.claude-web-interfaces/claude-relay
+# Check if Relay directory exists
+if [ -d "relay" ]; then
+    # Ensure Relay config exists
+    mkdir -p ~/.claude-ultrapilot-relay
 
-    if pgrep -f "node.*cli.js" > /dev/null; then
-        log "Relay already running"
-    else
-        nohup node bin/cli.js --dangerously-skip-permissions > logs/relay.log 2>&1 &
-        RELAY_PID=$!
-        echo $RELAY_PID > relay.pid
-
-        log_success "Relay started (PID: $RELAY_PID)"
+    if [ ! -f ~/.claude-ultrapilot-relay/config.json ]; then
+        log "Creating Relay configuration..."
+        cat > ~/.claude-ultrapilot-relay/config.json <<'EOF'
+{
+  "port": 3002,
+  "tls": false,
+  "pinHash": null,
+  "dangerouslySkipPermissions": true,
+  "debug": false,
+  "projects": []
+}
+EOF
     fi
 
-    cd $SCRIPT_DIR
+    # Start or restart Relay with PM2
+    if pm2 describe ultrapilot-relay-ui >/dev/null 2>&1; then
+        log "Relay already in PM2, restarting..."
+        pm2 restart relay.ecosystem.config.cjs
+    else
+        log "Starting Relay with PM2..."
+        pm2 start relay.ecosystem.config.cjs
+    fi
+
+    pm2 save --force
+    log_success "Relay running with PM2 (port 3002)"
 else
-    log_warning "Relay not found, skipping..."
+    log_warning "Relay not found in plugin directory, skipping..."
 fi
 
 # Step 8: Verify services
 log ""
 log "Step 8: Verifying services..."
 sleep 2
+
+# Check PM2 status
+pm2 status
 
 # Check Gateway
 if curl -s http://localhost:3001/health > /dev/null; then
@@ -196,8 +279,8 @@ else
 fi
 
 # Check Relay
-if curl -s http://localhost:3000 > /dev/null; then
-    log_success "✓ Relay running: http://localhost:3000"
+if curl -s http://localhost:3002 > /dev/null; then
+    log_success "✓ Relay running: http://localhost:3002"
 else
     log_warning "⚠ Relay not responding"
 fi
@@ -221,24 +304,30 @@ echo "╚═══════════════════════�
 echo ""
 log "Host: $THIS_HOST"
 log "Type: Distributed Peer"
-log "Peers: ${PEERS[*]}"
+log "Peers: ${PEER_ARRAY[*]}"
 echo ""
 echo "📍 Access URLs:"
-echo "  Relay:    http://$THIS_HOST:3000"
-echo "  Gateway:   http://$THIS_HOST:3001"
+echo "  Relay:      http://$THIS_HOST:3002 (UltraX Relay Web UI)"
+echo "  Gateway:    http://$THIS_HOST:3001 (API)"
 echo ""
 echo "💾 Workspace Access:"
-echo "  Local:     ~/projects/"
-for peer in "${PEERS[@]}"; do
+echo "  Local:     ~/"
+echo "  Remote:    ~/remote/vpsX/ (for each peer)"
+for peer in "${PEER_ARRAY[@]}"; do
     if [ "$peer" != "$THIS_HOST" ]; then
-        echo "  $peer:      ~/remote/$peer/projects/"
+        echo "             ~/remote/$peer/"
     fi
 done
 echo ""
-echo "🔧 Management:"
-echo "  Remount:     sudo systemctl restart ultrapilot-mounts"
-echo "  Status:      ./status.sh"
-echo "  Stop:        ./stop.sh"
+echo "🔧 PM2 Management:"
+echo "  Status:     pm2 status"
+echo "  Logs:       pm2 logs"
+echo "  Restart:    pm2 restart all"
+echo "  Stop:       pm2 stop all"
+echo ""
+echo "🔧 Mount Management:"
+echo "  Remount:    sudo systemctl restart ultrapilot-mounts"
+echo "  Status:     df -h | grep sshfs"
 echo ""
 echo "🌐 Federation:"
 echo "  All peers can access all workspaces"
