@@ -105,6 +105,27 @@ export class UltraXServer {
    * Setup HTTP routes
    */
   private setupRoutes(): void {
+    // Root endpoint - API information
+    this.app.get('/', (req: Request, res: Response) => {
+      res.json({
+        name: 'UltraX Server',
+        version: '1.0.0',
+        description: 'Ultrapilot Gateway for Web UI and Google Chat',
+        endpoints: {
+          health: 'GET /health',
+          gateway: 'POST /api/gateway',
+          sessions: 'GET /api/session/:sessionId',
+          relayCommands: 'GET /api/relay/commands',
+          relaySessions: 'GET /api/relay/sessions/:userId',
+          googleChatWebhook: 'POST /webhook/google-chat'
+        },
+        documentation: 'https://github.com/hscheema1979/ultrapilot',
+        status: '/health',
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString()
+      });
+    });
+
     // Health check
     this.app.get('/health', (req: Request, res: Response) => {
       res.json({
