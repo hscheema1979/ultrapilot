@@ -10,6 +10,7 @@ export * from './state.js';
 export * from './hud.js';
 export * from './registry.js';
 export * from './execution/parallel-task.js';
+export * from './agent-orchestration/index.js';
 
 /**
  * Ultrapilot version
