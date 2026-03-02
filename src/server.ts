@@ -136,6 +136,24 @@ export class UltraXServer {
       });
     });
 
+    // Workspace federation endpoint
+    this.app.get('/api/workspaces', async (req: Request, res: Response) => {
+      try {
+        const { getPeerWorkspaces } = await import('./workspace-federation.js');
+        const workspaces = await getPeerWorkspaces();
+        res.json({
+          workspaces,
+          timestamp: new Date().toISOString()
+        });
+      } catch (error: any) {
+        res.status(500).json({
+          error: 'Failed to get workspaces',
+          message: error.message,
+          timestamp: new Date()
+        });
+      }
+    });
+
     // Gateway endpoint for Web UI
     this.app.post('/api/gateway', async (req: Request, res: Response) => {
       try {
