@@ -16,7 +16,8 @@ import {
   TaskContext,
   InvocationContext,
   InvokerOptions,
-  TaskFunction
+  TaskFunction,
+  AgentDefinition
 } from './types.js';
 
 /**

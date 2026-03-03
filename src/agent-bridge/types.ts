@@ -167,7 +167,7 @@ export interface PromptBuilderOptions {
   includeWorkspaceContext?: boolean;
   includeTaskContext?: boolean;
   includeGuidelines?: boolean;
-  format: 'full' | 'concise' | 'minimal';
+  format?: 'full' | 'concise' | 'minimal';
 }
 
 /**
