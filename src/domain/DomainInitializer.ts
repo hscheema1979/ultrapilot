@@ -11,7 +11,7 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { existsSync } from 'fs';
-import { AGENT_CATALOG, AGENTS_BY_DOMAIN, AgentType } from '../agents.js';
+import { AGENT_CATALOG, AgentType } from '../agents.js';
 
 /**
  * Agent definition with explicit agentic structure
@@ -376,8 +376,8 @@ export class DomainInitializer {
       role: this.inferRoleFromDescription(agent.description),
       model: agent.model,
       capabilities: agent.capabilities,
-      ownership: this.inferOwnershipFromDomain(agent.domain, agent.plugin),
-      autonomous: this.inferAutonomyFromModel(agent.model, agent.domain)
+      ownership: this.inferOwnershipFromAgentName(agentName),
+      autonomous: this.inferAutonomyFromModel(agent.model)
     };
 
     // Add flags based on agent type
@@ -407,37 +407,39 @@ export class DomainInitializer {
   }
 
   /**
-   * Infer ownership based on domain and plugin
+   * Infer ownership based on agent name
    */
-  private inferOwnershipFromDomain(domain: string, plugin: string): string[] {
-    const ownershipMap: Record<string, string[]> = {
-      'software-dev': ['src/**/*.ts', 'lib/**/*.ts', 'skills/**/*', 'tests/**/*'],
-      'architecture': ['architecture/**/*', 'docs/architecture/**/*', 'infrastructure/**/*'],
-      'quality': ['tests/**/*', '**/*.test.ts', '**/*.spec.ts', 'quality-gates/**/*'],
-      'security': ['security/**/*', 'auth/**/*', 'credentials/**/*'],
-      'operations': ['ops/**/*', 'deploy/**/*', 'monitoring/**/*', 'logs/**/*'],
-      'ai-ml': ['ml/**/*', 'models/**/*', 'training/**/*', 'inference/**/*'],
-      'marketing': ['content/**/*', 'marketing/**/*', 'seo/**/*'],
-      'design': ['ui/**/*', 'design/**/*', 'components/**/*', 'styles/**/*'],
-      'data': ['data/**/*', 'datasets/**/*', 'pipelines/**/*'],
-      'mobile': ['mobile/**/*', 'ios/**/*', 'android/**/*'],
-      'agent-teams': ['.ultra/queues/*', '.ultra/state/*', 'agent-coordination'],
-      'debugging': ['bug-fixes/**/*', 'errors/**/*', 'diagnostics/**/*']
-    };
+  private inferOwnershipFromAgentName(agentName: string): string[] {
+    // Infer ownership patterns from agent name
+    if (agentName.includes('team-lead') || agentName.includes('orchestrator')) {
+      return ['.ultra/queues/*', '.ultra/state/*', 'agent-coordination'];
+    }
+    if (agentName.includes('test') || agentName.includes('quality')) {
+      return ['tests/**/*', '**/*.test.ts', '**/*.spec.ts', 'quality-gates/**/*'];
+    }
+    if (agentName.includes('security')) {
+      return ['security/**/*', 'auth/**/*', 'credentials/**/*'];
+    }
+    if (agentName.includes('debugger')) {
+      return ['bug-fixes/**/*', 'errors/**/*', 'diagnostics/**/*'];
+    }
+    if (agentName.includes('architect')) {
+      return ['architecture/**/*', 'docs/architecture/**/*', 'infrastructure/**/*'];
+    }
+    if (agentName.includes('writer') || agentName.includes('document')) {
+      return ['docs/**/*', '*.md', 'README.md', 'AGENTS.md'];
+    }
 
-    return ownershipMap[domain] || [`${plugin}/**/*`];
+    // Default: software development files
+    return ['src/**/*.ts', 'lib/**/*.ts', 'skills/**/*', 'tests/**/*'];
   }
 
   /**
-   * Infer autonomy based on model and domain
+   * Infer autonomy based on model
    */
-  private inferAutonomyFromModel(model: string, domain: string): boolean {
+  private inferAutonomyFromModel(model: string): boolean {
     // Opus agents are typically autonomous
     if (model === 'opus') return true;
-
-    // Certain domains require autonomy
-    const autonomousDomains = ['agent-teams', 'quality', 'security', 'operations'];
-    if (autonomousDomains.includes(domain)) return true;
 
     return false;
   }

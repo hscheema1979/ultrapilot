@@ -26,6 +26,7 @@
 import Database from 'better-sqlite3';
 import { EventEmitter } from 'events';
 import { promises as fs } from 'fs';
+import * as fsSync from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 
@@ -99,6 +100,9 @@ interface QueuedMessage extends AgentMessage {
   maxAttempts: number;
   createdAt: Date;
   scheduledAt?: Date;
+  deliveredAt?: Date;
+  ackedAt?: Date;
+  error?: string;
   signature?: string;
 }
 
@@ -187,12 +191,12 @@ export class AgentMessageBus extends EventEmitter {
     const resolvedPath = dbPath || '.ultra/state/messages.db';
 
     const dir = path.dirname(resolvedPath);
-    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    fsSync.mkdirSync(dir, { recursive: true, mode: 0o700 });
 
     const db = new Database(resolvedPath);
 
     // Secure permissions
-    fs.chmodSync(resolvedPath, 0o600);
+    fsSync.chmodSync(resolvedPath, 0o600);
 
     // WAL mode for performance
     db.pragma('journal_mode = WAL');

@@ -5,7 +5,6 @@
  * Loads agent definition, builds complete system prompt, and executes.
  */
 
-import { Task } from '../index.js';
 import { AgentDefinitionLoader } from './AgentDefinitionLoader.js';
 import { SystemPromptBuilder } from './SystemPromptBuilder.js';
 

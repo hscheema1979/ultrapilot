@@ -26,6 +26,7 @@
 
 import Database from 'better-sqlite3';
 import { promises as fs } from 'fs';
+import * as fsSync from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 
@@ -130,7 +131,7 @@ export class AgentStateStore {
 
     // Ensure directory exists
     const dir = path.dirname(resolvedPath);
-    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    fsSync.mkdirSync(dir, { recursive: true, mode: 0o700 });
 
     // Open database with WAL mode for concurrency
     const db = new Database(resolvedPath, {
@@ -138,7 +139,7 @@ export class AgentStateStore {
     });
 
     // Set secure permissions
-    fs.chmodSync(resolvedPath, 0o600);
+    fsSync.chmodSync(resolvedPath, 0o600);
 
     // Enable WAL mode for better concurrency
     db.pragma('journal_mode = WAL');
@@ -522,7 +523,9 @@ export class AgentStateStore {
     for (const sensitivePath of this.security.sensitivePaths) {
       const value = this.getNestedValue(sanitized, sensitivePath);
       if (value && this.isSecret(value)) {
-        const encrypted = crypto.encrypt(value, this.security.encryptionKey!);
+        // TODO: Implement proper encryption using crypto.createCipheriv()
+        // For now, just redact
+        const encrypted = '[REDACTED]';
         this.setNestedValue(sanitized, sensitivePath, encrypted);
       }
     }
