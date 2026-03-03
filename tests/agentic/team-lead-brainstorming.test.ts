@@ -21,23 +21,23 @@ class MockTaskTool {
   }): Promise<any> {
     // Simulate different agent responses
     const responses: Record<string, any> = {
-      'si:analyst': {
+      'ultra:analyst': {
         success: true,
         output: 'Requirements analysis complete:\n- User authentication needed\n- Role-based access control\n- Session management\n- Password reset flow'
       },
-      'si:architect': {
+      'ultra:architect': {
         success: true,
         output: 'Architecture proposal:\n- JWT-based stateless auth\n- REST API design\n- Database schema with users, roles, sessions tables\n- Redis for session storage'
       },
-      'si:security-analyst': {
+      'ultra:security-reviewer': {
         success: true,
         output: 'Security recommendations:\n- Use bcrypt for password hashing\n- Implement rate limiting\n- Add CSRF protection\n- Enable 2FA support\n- Security headers (CORS, CSP, etc.)'
       },
-      'si:frontend-specialist': {
+      'frontend-developer': {
         success: true,
         output: 'UI/UX considerations:\n- Login/register forms\n- Password strength indicator\n- Remember me checkbox\n- Social login buttons\n- Responsive design'
       },
-      'si:backend-specialist': {
+      'backend-architect': {
         success: true,
         output: 'Backend implementation:\n- Node.js with Express\n- PostgreSQL database\n- Passport.js for auth\n- JWT token management\n- API endpoints for auth'
       }
@@ -138,31 +138,31 @@ describe('Team Lead: Brainstorming and Analysis Sessions', () => {
       // Phase 1: Parallel brainstorming (all specialists contribute)
       const brainstormingResults = await orchestrator.coordinateParallel([
         {
-          agentId: 'si:analyst',
+          agentId: 'ultra:analyst',
           task: 'What are the requirements for user authentication?',
           context: { domain: 'analysis' },
           communicationChannels: ['brainstorm-channel']
         },
         {
-          agentId: 'si:architect',
+          agentId: 'ultra:architect',
           task: 'What architectural patterns should we consider?',
           context: { domain: 'architecture' },
           communicationChannels: ['brainstorm-channel']
         },
         {
-          agentId: 'si:security-analyst',
+          agentId: 'ultra:security-reviewer',
           task: 'What security considerations are critical?',
           context: { domain: 'security' },
           communicationChannels: ['brainstorm-channel']
         },
         {
-          agentId: 'si:frontend-specialist',
+          agentId: 'frontend-developer',
           task: 'What UX patterns work well for authentication?',
           context: { domain: 'frontend' },
           communicationChannels: ['brainstorm-channel']
         },
         {
-          agentId: 'si:backend-specialist',
+          agentId: 'backend-architect',
           task: 'What backend implementation approaches work best?',
           context: { domain: 'backend' },
           communicationChannels: ['brainstorm-channel']
@@ -202,27 +202,27 @@ describe('Team Lead: Brainstorming and Analysis Sessions', () => {
       // Record each agent's contribution
       const insights = [
         {
-          agent: 'si:analyst',
+          agent: 'ultra:analyst',
           insight: 'Need: JWT tokens, role-based access, session management',
           category: 'requirements'
         },
         {
-          agent: 'si:architect',
+          agent: 'ultra:architect',
           insight: 'Approach: Stateless auth, REST API, Redis sessions',
           category: 'architecture'
         },
         {
-          agent: 'si:security-analyst',
+          agent: 'ultra:security-reviewer',
           insight: 'Security: bcrypt, rate limiting, 2FA, CSRF protection',
           category: 'security'
         },
         {
-          agent: 'si:frontend-specialist',
+          agent: 'frontend-developer',
           insight: 'UX: Simple forms, social login, password strength',
           category: 'ux'
         },
         {
-          agent: 'si:backend-specialist',
+          agent: 'backend-architect',
           insight: 'Implementation: Node.js, PostgreSQL, Passport.js',
           category: 'implementation'
         }
@@ -287,7 +287,7 @@ describe('Team Lead: Brainstorming and Analysis Sessions', () => {
         steps: [
           {
             id: 'security-analysis',
-            agentId: 'si:security-analyst',
+            agentId: 'ultra:security-reviewer',
             task: 'Analyze security: OWASP Top 10, auth flows, encryption',
             outputTo: 'securityReport'
           },
@@ -307,7 +307,7 @@ describe('Team Lead: Brainstorming and Analysis Sessions', () => {
           },
           {
             id: 'synthesis',
-            agentId: 'si:technical-lead',
+            agentId: 'ultra:architect',
             task: 'Synthesize all analysis reports into recommendations',
             dependencies: ['code-quality-analysis'],
             outputTo: 'finalReport'
@@ -350,7 +350,7 @@ describe('Team Lead: Brainstorming and Analysis Sessions', () => {
 
       // Iteration 1: Initial analysis
       const iter1 = await orchestrator.spawnAgent(
-        'si:security-analyst',
+        'ultra:security-reviewer',
         'Initial security assessment',
         { domain: 'security' }
       );
@@ -367,7 +367,7 @@ describe('Team Lead: Brainstorming and Analysis Sessions', () => {
 
       // Iteration 2: Deep dive based on findings
       const iter2 = await orchestrator.spawnAgent(
-        'si:security-analyst',
+        'ultra:security-reviewer',
         'Deep dive: SQL injection and rate limiting vulnerabilities',
         {
           domain: 'security',
@@ -515,12 +515,12 @@ describe('Team Lead: Brainstorming and Analysis Sessions', () => {
         steps: [
           {
             id: 'analyze-needs',
-            agentId: 'si:analyst',
+            agentId: 'ultra:analyst',
             task: 'Analyze business requirements'
           },
           {
             id: 'document-requirements',
-            agentId: 'si:analyst',
+            agentId: 'ultra:analyst',
             task: 'Document requirements',
             dependencies: ['analyze-needs']
           }
@@ -547,12 +547,12 @@ describe('Team Lead: Brainstorming and Analysis Sessions', () => {
         steps: [
           {
             id: 'design-system',
-            agentId: 'si:architect',
+            agentId: 'ultra:architect',
             task: 'Design system architecture'
           },
           {
             id: 'document-architecture',
-            agentId: 'si:architect',
+            agentId: 'ultra:architect',
             task: 'Document architecture',
             dependencies: ['design-system']
           }

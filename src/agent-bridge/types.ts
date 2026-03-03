@@ -179,3 +179,20 @@ export interface InvokerOptions {
   enableMetrics?: boolean;
   logLevel?: 'debug' | 'info' | 'warn' | 'error';
 }
+
+/**
+ * Task Function - Matches Claude Code Task tool signature
+ *
+ * This function is injected from the host Claude Code environment
+ * and enables agents to spawn other agents autonomously.
+ */
+export type TaskFunction = (params: {
+  description: string;
+  prompt: string;
+  subagent_type: string;
+  model?: 'sonnet' | 'opus' | 'haiku';
+  resume?: string;
+  run_in_background?: boolean;
+  max_turns?: number;
+  isolation?: 'worktree';
+}) => Promise<any>;

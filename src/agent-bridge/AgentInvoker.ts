@@ -15,7 +15,8 @@ import {
   WorkspaceContext,
   TaskContext,
   InvocationContext,
-  InvokerOptions
+  InvokerOptions,
+  TaskFunction
 } from './types.js';
 
 /**
@@ -39,6 +40,7 @@ export class AgentInvoker {
     successCount: number;
     failureCount: number;
   }> = new Map();
+  private taskFunction?: TaskFunction;
 
   constructor(
     loader: AgentDefinitionLoader,
@@ -48,6 +50,15 @@ export class AgentInvoker {
     this.loader = loader;
     this.promptBuilder = promptBuilder;
     this.options = { ...DEFAULT_OPTIONS, ...options };
+  }
+
+  /**
+   * Set the Task function (injected from Claude Code host)
+   *
+   * This enables agents to spawn other Claude Code agents autonomously.
+   */
+  setTaskFunction(taskFn: TaskFunction): void {
+    this.taskFunction = taskFn;
   }
 
   /**
@@ -260,31 +271,38 @@ export class AgentInvoker {
   }
 
   /**
-   * Invoke Task tool (wrapper for actual Task call)
+   * Invoke Task tool - spawns actual Claude Code agent
    *
-   * Note: In actual implementation, this would call the Task tool.
-   * For now, this is a placeholder that simulates the call.
+   * This method creates an autonomous Claude Code subagent that works
+   * independently with full behavioral context from the agent definition.
    */
   private async invokeTaskTool(params: {
     subagent_type: string;
     description: string;
     prompt: string;
+    model?: 'opus' | 'sonnet' | 'haiku';
   }): Promise<any> {
-    // TODO: Implement actual Task tool invocation
-    // This would be something like:
-    // return await Task({
-    //   description: params.description,
-    //   prompt: params.prompt,
-    //   subagent_type: params.subagent_type
-    // });
+    // Check if Task function is available
+    if (!this.taskFunction) {
+      throw new Error(
+        'Task function not set. Agent spawning requires Claude Code host integration. ' +
+        'Call setTaskFunction() to enable autonomous agent spawning.'
+      );
+    }
 
-    // Placeholder: simulate task execution
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Spawn actual Claude Code agent with full behavioral context
+    this.log('info', `Spawning Claude Code agent: ${params.subagent_type}`);
 
-    return {
-      message: 'Task executed (placeholder)',
-      output: 'Placeholder output from agent invocation'
-    };
+    const result = await this.taskFunction({
+      description: params.description,
+      prompt: params.prompt,
+      subagent_type: params.subagent_type,
+      model: params.model
+    });
+
+    this.log('debug', `Agent completed: ${result ? 'success' : 'failed'}`);
+
+    return result;
   }
 
   /**

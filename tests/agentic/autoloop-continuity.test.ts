@@ -26,7 +26,7 @@ class MockTaskTool {
   }): Promise<any> {
     // Simulate quick routine execution
     const routines: Record<string, any> = {
-      'check-email': {
+      'ultra:executor': {
         success: true,
         output: `Email check at ${new Date().toISOString()}\n- 3 new messages\n- 2 high priority\n- 1 notification`,
         metadata: {
@@ -34,7 +34,7 @@ class MockTaskTool {
           messageCount: 3
         }
       },
-      'process-tasks': {
+      'ultra:executor': {
         success: true,
         output: `Task processing at ${new Date().toISOString()}\n- Processed 5 tasks\n- 3 completed\n- 2 queued`,
         metadata: {
@@ -42,7 +42,7 @@ class MockTaskTool {
           tasksProcessed: 5
         }
       },
-      'health-check': {
+      'ultra:verifier': {
         success: true,
         output: `Health check at ${new Date().toISOString()}\n- All systems operational\n- Memory: 45%\n- CPU: 12%`,
         metadata: {
@@ -136,7 +136,7 @@ describe('Ultra-Autoloop: Continuous Execution', () => {
       await stateStore.create(routineId, {
         currentTask: 'Email monitoring routine',
         context: {
-          routine: 'check-email',
+          routine: 'ultra:executor',
           interval: 60000,  // 1 minute
           lastCheck: null
         }
@@ -144,7 +144,7 @@ describe('Ultra-Autoloop: Continuous Execution', () => {
 
       // Iteration 1: Check email
       const iter1 = await orchestrator.spawnAgent(
-        'check-email',
+        'ultra:executor',
         'Check email for new messages',
         {
           domain: 'communications',
@@ -157,7 +157,7 @@ describe('Ultra-Autoloop: Continuous Execution', () => {
       // Update state after iteration 1
       await stateStore.update(routineId, {
         context: {
-          routine: 'check-email',
+          routine: 'ultra:executor',
           interval: 60000,
           lastCheck: new Date().toISOString(),
           iteration: 1
@@ -173,7 +173,7 @@ describe('Ultra-Autoloop: Continuous Execution', () => {
       await new Promise(resolve => setTimeout(resolve, 100));  // Small delay
 
       const iter2 = await orchestrator.spawnAgent(
-        'check-email',
+        'ultra:executor',
         'Check email for new messages',
         {
           domain: 'communications',
@@ -186,7 +186,7 @@ describe('Ultra-Autoloop: Continuous Execution', () => {
       // Update state after iteration 2
       await stateStore.update(routineId, {
         context: {
-          routine: 'check-email',
+          routine: 'ultra:executor',
           interval: 60000,
           lastCheck: new Date().toISOString(),
           iteration: 2
@@ -228,7 +228,7 @@ describe('Ultra-Autoloop: Continuous Execution', () => {
 
       // Process queue
       const process = await orchestrator.spawnAgent(
-        'process-tasks',
+        'ultra:executor',
         'Process 3 emails from queue',
         {
           domain: 'communications',
@@ -274,7 +274,7 @@ describe('Ultra-Autoloop: Continuous Execution', () => {
 
       // Iteration 1: Process tasks
       const iter1 = await orchestrator.spawnAgent(
-        'process-tasks',
+        'ultra:executor',
         'Process available tasks',
         {
           domain: 'task-management',
@@ -298,7 +298,7 @@ describe('Ultra-Autoloop: Continuous Execution', () => {
 
       // Iteration 2: Process more tasks
       const iter2 = await orchestrator.spawnAgent(
-        'process-tasks',
+        'ultra:executor',
         'Process available tasks',
         {
           domain: 'task-management',
@@ -353,7 +353,7 @@ describe('Ultra-Autoloop: Continuous Execution', () => {
 
       // Iteration 2: Retry
       const retry = await orchestrator.spawnAgent(
-        'process-tasks',
+        'ultra:executor',
         'Retry task-1',
         {
           domain: 'task-management',
@@ -395,7 +395,7 @@ describe('Ultra-Autoloop: Continuous Execution', () => {
 
       // Iteration 1: Health check
       const health1 = await orchestrator.spawnAgent(
-        'health-check',
+        'ultra:verifier',
         'Perform system health check',
         {
           domain: 'monitoring',
@@ -426,7 +426,7 @@ describe('Ultra-Autoloop: Continuous Execution', () => {
 
       // Iteration 2: Another health check
       const health2 = await orchestrator.spawnAgent(
-        'health-check',
+        'ultra:verifier',
         'Perform system health check',
         {
           domain: 'monitoring',
@@ -485,7 +485,7 @@ describe('Ultra-Autoloop: Continuous Execution', () => {
 
       // Autoloop triggers remediation workflow
       const remediation = await orchestrator.spawnAgent(
-        'process-tasks',
+        'ultra:executor',
         'Run memory cleanup and optimization',
         {
           domain: 'maintenance',
@@ -518,13 +518,13 @@ describe('Ultra-Autoloop: Continuous Execution', () => {
         context: {
           startTime: new Date().toISOString(),
           iterations: 0,
-          routines: ['email-check', 'task-process', 'health-check'],
+          routines: ['email-check', 'task-process', 'ultra:verifier'],
           status: 'running'
         }
       });
 
       // Execute routines in iteration 1
-      for (const routine of ['email-check', 'task-process', 'health-check']) {
+      for (const routine of ['email-check', 'task-process', 'ultra:verifier']) {
         await orchestrator.spawnAgent(
           routine,
           `Execute ${routine}`,
@@ -543,7 +543,7 @@ describe('Ultra-Autoloop: Continuous Execution', () => {
       expect(state1?.context?.iterations).toBe(1);
 
       // Execute routines in iteration 2 (autoloop continues)
-      for (const routine of ['email-check', 'task-process', 'health-check']) {
+      for (const routine of ['email-check', 'task-process', 'ultra:verifier']) {
         await orchestrator.spawnAgent(
           routine,
           `Execute ${routine}`,
@@ -577,7 +577,7 @@ describe('Ultra-Autoloop: Continuous Execution', () => {
 
       // Simulate 5 iterations
       for (let i = 1; i <= 5; i++) {
-        await orchestrator.spawnAgent('check-email', 'Check email', {});
+        await orchestrator.spawnAgent('ultra:executor', 'Check email', {});
 
         await stateStore.update(autoloopSession, {
           context: {
@@ -618,7 +618,7 @@ describe('Ultra-Autoloop: Continuous Execution', () => {
       });
 
       // Start autoloop
-      await orchestrator.spawnAgent('check-email', 'Check email', {});
+      await orchestrator.spawnAgent('ultra:executor', 'Check email', {});
 
       // Cancel requested
       await stateStore.update(cancelableSession, {
@@ -662,7 +662,7 @@ describe('Ultra-Autoloop: Continuous Execution', () => {
       });
 
       // Iteration 1: Running
-      await orchestrator.spawnAgent('check-email', 'Check email', {});
+      await orchestrator.spawnAgent('ultra:executor', 'Check email', {});
 
       await stateStore.update(pausableSession, {
         context: {
@@ -693,7 +693,7 @@ describe('Ultra-Autoloop: Continuous Execution', () => {
       });
 
       // Continue with iteration 2
-      await orchestrator.spawnAgent('check-email', 'Check email', {});
+      await orchestrator.spawnAgent('ultra:executor', 'Check email', {});
 
       await stateStore.update(pausableSession, {
         context: {
@@ -717,7 +717,7 @@ describe('Ultra-Autoloop: Continuous Execution', () => {
       await stateStore.create(sessionId, {
         currentTask: 'Multi-routine autoloop',
         context: {
-          routines: ['check-email', 'process-tasks', 'health-check'],
+          routines: ['ultra:executor', 'ultra:executor', 'ultra:verifier'],
           iteration: 0
         }
       });
@@ -725,17 +725,17 @@ describe('Ultra-Autoloop: Continuous Execution', () => {
       // Single iteration: Execute all routines
       const results = await orchestrator.coordinateParallel([
         {
-          agentId: 'check-email',
+          agentId: 'ultra:executor',
           task: 'Check for new emails',
           context: { domain: 'communications' }
         },
         {
-          agentId: 'process-tasks',
+          agentId: 'ultra:executor',
           task: 'Process task queue',
           context: { domain: 'tasks' }
         },
         {
-          agentId: 'health-check',
+          agentId: 'ultra:verifier',
           task: 'System health check',
           context: { domain: 'monitoring' }
         }
@@ -770,25 +770,25 @@ describe('Ultra-Autoloop: Continuous Execution', () => {
       });
 
       // Routine 1 succeeds
-      const r1 = await orchestrator.spawnAgent('check-email', 'Check email', {});
+      const r1 = await orchestrator.spawnAgent('ultra:executor', 'Check email', {});
 
       // Routine 2 fails (simulated)
-      await stateStore.recordInvocation(sessionId, 'process-tasks', false, 5000);
+      await stateStore.recordInvocation(sessionId, 'ultra:executor', false, 5000);
 
       // Routine 3 succeeds
-      const r3 = await orchestrator.spawnAgent('health-check', 'Health check', {});
+      const r3 = await orchestrator.spawnAgent('ultra:verifier', 'Health check', {});
 
       // Autoloop continues despite failure
       await stateStore.update(sessionId, {
         context: {
           iteration: 1,
-          failures: ['process-tasks'],
+          failures: ['ultra:executor'],
           autoloopStatus: 'continuing'  // Didn't stop!
         }
       });
 
       const state = await stateStore.get(sessionId);
-      expect(state?.context?.failures).toContain('process-tasks');
+      expect(state?.context?.failures).toContain('ultra:executor');
       expect(state?.context?.autoloopStatus).toBe('continuing');
     });
   });
@@ -809,13 +809,13 @@ describe('Ultra-Autoloop: Continuous Execution', () => {
       });
 
       // Iteration 1: Success
-      await orchestrator.spawnAgent('check-email', 'Check email', {});
+      await orchestrator.spawnAgent('ultra:executor', 'Check email', {});
       await stateStore.update(sessionId, {
         context: { iterations: 1, status: 'running' }
       });
 
       // Iteration 2: Failure
-      await stateStore.recordInvocation(sessionId, 'process-tasks', false, 5000);
+      await stateStore.recordInvocation(sessionId, 'ultra:executor', false, 5000);
       await stateStore.update(sessionId, {
         context: {
           iterations: 2,
@@ -825,7 +825,7 @@ describe('Ultra-Autoloop: Continuous Execution', () => {
       });
 
       // Iteration 3: Recover and continue
-      await orchestrator.spawnAgent('check-email', 'Check email', {});
+      await orchestrator.spawnAgent('ultra:executor', 'Check email', {});
       await stateStore.update(sessionId, {
         context: {
           iterations: 3,
@@ -861,7 +861,7 @@ describe('Ultra-Autoloop: Continuous Execution', () => {
       expect(beforeRestart?.context?.iterations).toBe(100);
 
       // "After restart" - continue from where left off
-      await orchestrator.spawnAgent('check-email', 'Continue checking emails', {
+      await orchestrator.spawnAgent('ultra:executor', 'Continue checking emails', {
         context: { resumingFrom: 'iteration-100' }
       });
 

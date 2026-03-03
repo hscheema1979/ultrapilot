@@ -103,7 +103,7 @@ describe('Agentic Orchestration: Session Coordinator', () => {
         currentTask: 'Coordinate brainstorming for new feature',
         context: {
           feature: 'User authentication system',
-          participants: ['si:analyst', 'si:architect', 'si:designer']
+          participants: ['ultra:analyst', 'ultra:architect', 'si:designer']
         }
       });
 
@@ -116,13 +116,13 @@ describe('Agentic Orchestration: Session Coordinator', () => {
         steps: [
           {
             id: 'analyze-requirements',
-            agentId: 'si:analyst',
+            agentId: 'ultra:analyst',
             task: 'Analyze requirements for user authentication system',
             outputTo: 'requirements'
           },
           {
             id: 'propose-architecture',
-            agentId: 'si:architect',
+            agentId: 'ultra:architect',
             task: 'Propose system architecture for authentication',
             dependencies: ['analyze-requirements']
           },
@@ -174,7 +174,7 @@ describe('Agentic Orchestration: Session Coordinator', () => {
 
       // Step 2: Architect reads analyst's decision
       const architectResult = await orchestrator.spawnAgent(
-        'si:architect',
+        'ultra:architect',
         'Design system architecture considering React frontend',
         {
           domain: 'architecture',
@@ -228,13 +228,13 @@ describe('Agentic Orchestration: Session Coordinator', () => {
           communicationChannels: ['coordination']
         },
         {
-          agentId: 'si:frontend-specialist',
+          agentId: 'frontend-developer',
           task: 'Analyze frontend authentication UI',
           context: { domain: 'frontend' },
           communicationChannels: ['coordination']
         },
         {
-          agentId: 'si:security-analyst',
+          agentId: 'ultra:security-reviewer',
           task: 'Analyze security implications',
           context: { domain: 'security' },
           communicationChannels: ['coordination']
@@ -316,7 +316,7 @@ describe('Agentic Orchestration: Session Coordinator', () => {
         decision: 'Use REST API',
         reasoning: 'Simple, widely adopted, good for CRUD operations',
         alternatives: ['GraphQL', 'gRPC'],
-        agentId: 'si:architect-a'
+        agentId: 'ultra:architect-a'
       });
 
       // Agent B recommends GraphQL
@@ -324,7 +324,7 @@ describe('Agentic Orchestration: Session Coordinator', () => {
         decision: 'Use GraphQL',
         reasoning: 'Flexible queries, reduces over-fetching, good for complex data',
         alternatives: ['REST', 'gRPC'],
-        agentId: 'si:architect-b'
+        agentId: 'ultra:architect-b'
       });
 
       // Session coordinator should see both recommendations
@@ -338,8 +338,8 @@ describe('Agentic Orchestration: Session Coordinator', () => {
       expect(graphqlRecommendation).toBeDefined();
 
       // Coordinator now has context to make decision or ask user
-      expect(restRecommendation?.agentId).toBe('si:architect-a');
-      expect(graphqlRecommendation?.agentId).toBe('si:architect-b');
+      expect(restRecommendation?.agentId).toBe('ultra:architect-a');
+      expect(graphqlRecommendation?.agentId).toBe('ultra:architect-b');
     });
   });
 
@@ -356,7 +356,7 @@ describe('Agentic Orchestration: Session Coordinator', () => {
       });
 
       const phase1 = await orchestrator.spawnAgent(
-        'si:analyst',
+        'ultra:analyst',
         'Gather and document requirements',
         { domain: 'analysis' }
       );
@@ -375,7 +375,7 @@ describe('Agentic Orchestration: Session Coordinator', () => {
 
       // Phase 2: Architecture (can read Phase 1 output)
       const phase2 = await orchestrator.spawnAgent(
-        'si:architect',
+        'ultra:architect',
         'Design system architecture based on requirements',
         { domain: 'architecture' }
       );
@@ -542,7 +542,7 @@ describe('Agentic Orchestration: Session Coordinator', () => {
 
       // Agent can now build on previous context
       const extension = await orchestrator.spawnAgent(
-        'si:architect',
+        'ultra:architect',
         'Extend authentication to support OAuth providers (Google, GitHub)',
         {
           domain: 'architecture',

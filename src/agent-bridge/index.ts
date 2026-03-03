@@ -32,7 +32,8 @@ import {
   InvocationResult,
   LoaderOptions,
   PromptBuilderOptions,
-  InvokerOptions
+  InvokerOptions,
+  TaskFunction
 } from './types.js';
 
 /**
@@ -167,6 +168,21 @@ export class AgentBridge {
       promptBuilder: this.promptBuilder,
       invoker: this.invoker
     };
+  }
+
+  /**
+   * Set the Task function (injected from Claude Code host)
+   *
+   * This enables agents to spawn other Claude Code agents autonomously.
+   * Pass the Task tool function from the host environment.
+   *
+   * @example
+   * ```typescript
+   * bridge.setTaskFunction(Task);
+   * ```
+   */
+  setTaskFunction(taskFn: TaskFunction): void {
+    this.invoker.setTaskFunction(taskFn);
   }
 }
 
