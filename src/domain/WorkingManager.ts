@@ -14,6 +14,8 @@
 
 import { Task, TaskPriority } from './TaskQueue.js';
 import { EventEmitter } from 'events';
+import { TaskExecutor, createTaskExecutor } from './TaskExecutor.js';
+import { TeamOrchestrator, createTeamOrchestrator } from './TeamOrchestrator.js';
 
 /**
  * Task complexity classification
@@ -87,12 +89,26 @@ export class WorkingManager extends EventEmitter {
   private config: WorkingManagerConfig;
   private activeTeams: Map<string, TeamCoordination>;
   private executionHistory: Map<string, TaskSizeEstimate[]>;
+  private taskExecutor: TaskExecutor;
+  private teamOrchestrator: TeamOrchestrator;
 
   constructor(config?: Partial<WorkingManagerConfig>) {
     super();
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.activeTeams = new Map();
     this.executionHistory = new Map();
+
+    // Initialize task executor and team orchestrator
+    this.taskExecutor = createTaskExecutor();
+    this.teamOrchestrator = createTeamOrchestrator({
+      maxConcurrentTeams: config?.maxConcurrentTeams || 5,
+      maxWorkersPerTeam: config?.maxWorkersPerTeam || 5
+    });
+
+    // Forward team orchestrator events
+    this.teamOrchestrator.on('teamSpawned', (data) => this.emit('teamSpawned', data));
+    this.teamOrchestrator.on('teamCompleted', (data) => this.emit('teamCompleted', data));
+    this.teamOrchestrator.on('teamProgress', (data) => this.emit('teamProgress', data));
   }
 
   /**
@@ -272,29 +288,8 @@ export class WorkingManager extends EventEmitter {
     console.log(`   [WorkingManager] Executing task myself: ${task.title}`);
 
     try {
-      // TODO: Implement actual task execution
-      // For now, this is a placeholder that simulates execution
-      //
-      // In real implementation, this would:
-      // 1. Use Task tool to spawn appropriate agent for the work
-      // 2. Monitor agent progress
-      // 3. Capture results
-      // 4. Return task result
-
-      console.log(`   [WorkingManager] Task execution started...`);
-
-      // Simulate work (in real implementation, this would be async agent work)
-      await this.simulateWork(task);
-
-      const result = {
-        success: true,
-        output: `Task "${task.title}" completed successfully by Ultra Loop`,
-        metadata: {
-          executedBy: 'ultra-loop',
-          executionMethod: 'individual',
-          executionTime: Date.now()
-        }
-      };
+      // Use TaskExecutor to execute with appropriate agent
+      const result = await this.taskExecutor.executeTask(task);
 
       console.log(`   [WorkingManager] ✅ Task completed successfully`);
       this.emit('taskExecuted', { taskId: task.id, result });
@@ -330,25 +325,23 @@ export class WorkingManager extends EventEmitter {
     console.log(`   [WorkingManager]   - Workers: ${workerCount}`);
 
     try {
-      // TODO: Implement actual team spawning using ultra-team skill
-      // For now, this is a placeholder
-      //
-      // In real implementation, this would:
-      // 1. Use Skill tool to invoke ultra-team
-      // 2. Configure team with workerCount agents
-      // 3. Assign task to team
-      // 4. Return teamId for tracking
+      // Use TeamOrchestrator to spawn team
+      await this.teamOrchestrator.spawnTeam({
+        teamId,
+        task,
+        workerCount
+      });
 
+      // Track coordination locally
       const coordination: TeamCoordination = {
         teamId,
         workers: workerCount,
         taskIds: [task.id],
-        status: 'starting',
+        status: 'running',
         startedAt: new Date()
       };
 
       this.activeTeams.set(teamId, coordination);
-      this.emit('teamSpawned', { teamId, task, workerCount });
 
       console.log(`   [WorkingManager] ✅ Team ${teamId} spawned successfully`);
 
@@ -366,12 +359,20 @@ export class WorkingManager extends EventEmitter {
   async spawnMultipleTeams(task: Task, teamCount: number, totalWorkers: number): Promise<string[]> {
     console.log(`   [WorkingManager] Spawning ${teamCount} teams with ${totalWorkers} total workers`);
 
-    const workersPerTeam = Math.ceil(totalWorkers / teamCount);
-    const teamIds: string[] = [];
+    // Use TeamOrchestrator to spawn multiple teams
+    const teamIds = await this.teamOrchestrator.spawnMultipleTeams(task, teamCount, totalWorkers);
 
-    for (let i = 0; i < teamCount; i++) {
-      const teamId = await this.spawnUltraTeam(task, workersPerTeam);
-      teamIds.push(teamId);
+    // Track all teams locally
+    for (const teamId of teamIds) {
+      const workersPerTeam = Math.ceil(totalWorkers / teamCount);
+      const coordination: TeamCoordination = {
+        teamId,
+        workers: workersPerTeam,
+        taskIds: [task.id],
+        status: 'running',
+        startedAt: new Date()
+      };
+      this.activeTeams.set(teamId, coordination);
     }
 
     console.log(`   [WorkingManager] ✅ All ${teamCount} teams spawned`);
@@ -396,12 +397,86 @@ export class WorkingManager extends EventEmitter {
 
     this.emit('teamsCoordinated', { task, teamIds });
 
-    // TODO: Implement ongoing coordination
-    // In real implementation, this would:
-    // 1. Monitor each team's progress
-    // 2. Handle inter-team dependencies
-    // 3. Resolve conflicts
-    // 4. Aggregate results
+    // Monitor teams until they complete
+    await this.monitorTeams(task, teamIds);
+  }
+
+  /**
+   * Monitor multiple teams until completion
+   */
+  private async monitorTeams(task: Task, teamIds: string[]): Promise<void> {
+    console.log(`   [WorkingManager] Monitoring ${teamIds.length} teams...`);
+
+    const checkInterval = 10000; // Check every 10 seconds
+    const maxWaitTime = 60 * 60 * 1000; // Max 1 hour
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < maxWaitTime) {
+      // Check status of all teams
+      const teamStatuses = teamIds.map(teamId =>
+        this.teamOrchestrator.getTeamStatus(teamId)
+      );
+
+      const completedTeams = teamStatuses.filter(t => t && t.status === 'completed');
+      const failedTeams = teamStatuses.filter(t => t && t.status === 'failed');
+      const activeTeams = teamStatuses.filter(t => t && (t.status === 'running' || t.status === 'starting'));
+
+      // Log progress
+      console.log(`   [WorkingManager] Progress: ${completedTeams.length}/${teamIds.length} teams completed`);
+
+      // Check if all teams are done
+      if (completedTeams.length + failedTeams.length === teamIds.length) {
+        console.log(`   [WorkingManager] ✅ All teams finished`);
+        console.log(`   [WorkingManager]    - Completed: ${completedTeams.length}`);
+        console.log(`   [WorkingManager]    - Failed: ${failedTeams.length}`);
+
+        // Update local coordination status
+        for (const teamId of teamIds) {
+          const status = this.teamOrchestrator.getTeamStatus(teamId);
+          const coordination = this.activeTeams.get(teamId);
+          if (coordination && status) {
+            coordination.status = status.status as any;
+            if (status.completedAt) {
+              coordination.completedAt = status.completedAt;
+            }
+          }
+        }
+
+        break;
+      }
+
+      // Wait before next check
+      await new Promise(resolve => setTimeout(resolve, checkInterval));
+    }
+
+    // Aggregate results from all teams
+    const results = this.aggregateTeamResults(task, teamIds);
+    this.emit('teamsResultsAggregated', { task, teamIds, results });
+  }
+
+  /**
+   * Aggregate results from multiple teams
+   */
+  private aggregateTeamResults(task: Task, teamIds: string[]) {
+    const teamResults = teamIds.map(teamId => {
+      const status = this.teamOrchestrator.getTeamStatus(teamId);
+      return {
+        teamId,
+        status: status?.status,
+        result: status?.result
+      };
+    });
+
+    const completedCount = teamResults.filter(r => r.status === 'completed').length;
+    const failedCount = teamResults.filter(r => r.status === 'failed').length;
+
+    return {
+      totalTeams: teamIds.length,
+      completedTeams: completedCount,
+      failedTeams: failedCount,
+      successRate: completedCount / teamIds.length,
+      results: teamResults
+    };
   }
 
   /**
@@ -431,16 +506,6 @@ export class WorkingManager extends EventEmitter {
   }
 
   /**
-   * Simulate work (placeholder for actual execution)
-   */
-  private async simulateWork(task: Task): Promise<void> {
-    // Simulate work based on estimated complexity
-    const size = this.estimateTaskSize(task);
-    const workTime = Math.min(size.estimatedHours * 100, 5000); // Max 5 seconds for demo
-    await new Promise(resolve => setTimeout(resolve, workTime));
-  }
-
-  /**
    * Get execution statistics
    */
   getStats(): {
@@ -448,6 +513,7 @@ export class WorkingManager extends EventEmitter {
     totalTeamsSpawned: number;
     activeTeams: number;
     avgTeamSize: number;
+    teamOrchestratorStats: ReturnType<TeamOrchestrator['getStats']>;
   } {
     const teams = Array.from(this.activeTeams.values());
     const totalWorkers = teams.reduce((sum, t) => sum + t.workers, 0);
@@ -456,7 +522,8 @@ export class WorkingManager extends EventEmitter {
       totalExecutions: 0,  // TODO: Track executions
       totalTeamsSpawned: teams.length,
       activeTeams: teams.filter(t => t.status === 'running').length,
-      avgTeamSize: teams.length > 0 ? totalWorkers / teams.length : 0
+      avgTeamSize: teams.length > 0 ? totalWorkers / teams.length : 0,
+      teamOrchestratorStats: this.teamOrchestrator.getStats()
     };
   }
 }

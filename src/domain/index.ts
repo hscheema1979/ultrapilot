@@ -79,6 +79,24 @@ export {
   type WorkingManagerConfig
 } from './WorkingManager.js';
 
+// Export TaskExecutor and related types
+export {
+  TaskExecutor,
+  createTaskExecutor,
+  type TaskExecutionResult,
+  type TaskExecutorConfig
+} from './TaskExecutor.js';
+
+// Export TeamOrchestrator and related types
+export {
+  TeamOrchestrator,
+  createTeamOrchestrator,
+  type TeamStatus,
+  type TeamConfig,
+  type TeamExecution,
+  type TeamOrchestratorConfig
+} from './TeamOrchestrator.js';
+
 // Export DomainProcessManager and related types
 export {
   DomainProcessManager,
