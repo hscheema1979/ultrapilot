@@ -11,6 +11,7 @@ export * from './hud.js';
 export * from './registry.js';
 export * from './execution/parallel-task.js';
 export * from './agent-orchestration/index.js';
+export * from './intent-detection/index.js';
 
 /**
  * Ultrapilot version

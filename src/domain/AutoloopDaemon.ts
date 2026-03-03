@@ -14,9 +14,14 @@
 import { EventEmitter } from 'events';
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import { DomainManager, createDomainManager } from './DomainManager.js';
 import { DomainConfig } from './DomainInitializer.js';
 import { WorkingManager, createWorkingManager } from './WorkingManager.js';
+import { Task } from './TaskQueue.js';
+
+const execAsync = promisify(exec);
 
 /**
  * Autoloop state
@@ -364,62 +369,10 @@ export class AutoloopDaemon extends EventEmitter {
       // Step 2: Assign task to ultra-loop (this moves it to in-progress)
       await taskQueue.assignTask(nextTask.id, 'executor', 'ultra-loop');
 
-      // Step 3: Execute based on strategy
-      let result;
+      // Step 3: Execute by routing to appropriate skill
+      console.log(`   [Autoloop] → Routing to specialist skill...`);
 
-      if (strategy.executeMyself && !strategy.spawnTeam) {
-        // SMALL task: Execute myself
-        console.log(`   [Autoloop] → Executing task myself (individual execution)`);
-        result = await this.workingManager.executeTaskMyself(nextTask);
-
-      } else if (strategy.executeMyself && strategy.spawnTeam && !strategy.spawnMultipleTeams) {
-        // MEDIUM task: Do parts myself + spawn team
-        console.log(`   [Autoloop] → Hybrid approach: overseeing team execution`);
-        const teamId = await this.workingManager.spawnUltraTeam(nextTask, strategy.workerCount);
-        console.log(`   [Autoloop] → Team ${teamId} spawned with ${strategy.workerCount} workers`);
-
-        // TODO: Monitor team progress and coordinate
-        result = {
-          success: true,
-          output: `Task assigned to team ${teamId}`,
-          metadata: {
-            teamId,
-            executedBy: 'ultra-loop',
-            executionMethod: 'hybrid',
-            workersSpawned: strategy.workerCount
-          }
-        };
-
-      } else if (strategy.spawnMultipleTeams) {
-        // LARGE/HUGE task: Spawn multiple teams, coordinate them
-        console.log(`   [Autoloop] → Multi-team coordination: ${strategy.teamCount} teams`);
-        const teamIds = await this.workingManager.spawnMultipleTeams(
-          nextTask,
-          strategy.teamCount,
-          strategy.workerCount
-        );
-        console.log(`   [Autoloop] → Teams spawned: ${teamIds.join(', ')}`);
-
-        // Coordinate teams
-        await this.workingManager.coordinateTeams(nextTask, teamIds);
-
-        result = {
-          success: true,
-          output: `Task coordinated across ${teamIds.length} teams`,
-          metadata: {
-            teamIds,
-            executedBy: 'ultra-loop',
-            executionMethod: 'coordination',
-            workersSpawned: strategy.workerCount,
-            teamsSpawned: strategy.teamCount
-          }
-        };
-
-      } else {
-        // Fallback: Execute myself
-        console.log(`   [Autoloop] → Fallback: executing task myself`);
-        result = await this.workingManager.executeTaskMyself(nextTask);
-      }
+      const result = await this.routeAndExecuteTask(nextTask);
 
       // Step 4: Update task with result
       if (result?.success) {
@@ -446,6 +399,200 @@ export class AutoloopDaemon extends EventEmitter {
     }
 
     return processed;
+  }
+
+  /**
+   * Route task to appropriate skill and execute using Claude CLI
+   * Routes based on task category to specialist skills
+   */
+  private async routeAndExecuteTask(task: Task): Promise<{
+    success: boolean;
+    output?: string;
+    error?: string;
+    metadata?: Record<string, unknown>;
+  }> {
+    const startTime = Date.now();
+
+    try {
+      // Step 1: Categorize task to determine which skill to use
+      const category = this.categorizeTask(task);
+      const skill = this.getSkillForCategory(category);
+
+      console.log(`   [Autoloop] Task category: ${category}`);
+      console.log(`   [Autoloop] Routing to skill: ${skill}`);
+
+      // Step 2: Build prompt for the skill
+      const prompt = `/${skill} ${task.title}
+
+Task ID: ${task.id}
+Description: ${task.description}
+Priority: ${task.priority === 10 ? 'CRITICAL' : task.priority >= 8 ? 'HIGH' : task.priority >= 5 ? 'NORMAL' : 'LOW'}
+Status: ${task.status}
+Tags: ${task.tags?.join(', ') || 'none'}
+
+You are being spawned by autoloop to process this task from the intake queue.
+Work autonomously:
+- Analyze the requirements
+- Execute the task using appropriate agents
+- Complete the work
+- Report results
+
+Autoloop will trigger again in 60 seconds to process more tasks.`;
+
+      // Invoke Claude CLI non-interactively using spawn to handle stdin
+      const { spawn } = await import('child_process');
+
+      const result = await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+        const child = spawn('claude', ['--print', '--output-format', 'json', '--no-session-persistence'], {
+          cwd: this.config.workspacePath,
+          stdio: ['pipe', 'pipe', 'pipe']
+        });
+
+        let stdout = '';
+        let stderr = '';
+
+        child.stdout?.on('data', (data) => { stdout += data; });
+        child.stderr?.on('data', (data) => { stderr += data; });
+
+        child.on('close', (code) => {
+          if (code === 0) {
+            resolve({ stdout, stderr });
+          } else {
+            reject(new Error(`Claude CLI exited with code ${code}: ${stderr}`));
+          }
+        });
+
+        child.on('error', reject);
+
+        // Write prompt to stdin
+        child.stdin?.write(prompt);
+        child.stdin?.end();
+
+        // Timeout after 5 minutes
+        setTimeout(() => {
+          child.kill();
+          reject(new Error('Claude CLI timeout after 5 minutes'));
+        }, 300000);
+      });
+
+      const { stdout, stderr } = result;
+
+      const duration = Date.now() - startTime;
+
+      // Parse output
+      let output: string;
+      let success = true;
+
+      try {
+        const result = JSON.parse(stdout);
+        output = result.message || result.text || JSON.stringify(result);
+      } catch {
+        // If not JSON, use raw output
+        output = stdout;
+      }
+
+      // Check for errors
+      if (stderr && stderr.includes('error')) {
+        success = false;
+        console.error(`   [Autoloop] Claude CLI error: ${stderr}`);
+      }
+
+      console.log(`   [Autoloop] Agent completed in ${duration}ms`);
+
+      return {
+        success,
+        output,
+        metadata: {
+          executedBy: 'autoloop-daemon',
+          executionMethod: `claude-cli-${skill}`,
+          category,
+          skill,
+          duration,
+          timestamp: new Date().toISOString()
+        }
+      };
+
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      const errorMsg = error instanceof Error ? error.message : String(error);
+
+      console.error(`   [Autoloop] ❌ Failed to spawn agent: ${errorMsg}`);
+
+      return {
+        success: false,
+        error: errorMsg,
+        metadata: {
+          executedBy: 'autoloop-daemon',
+          executionMethod: 'claude-cli-autoloop',
+          duration,
+          timestamp: new Date().toISOString(),
+          failureReason: errorMsg
+        }
+      };
+    }
+  }
+
+  /**
+   * Categorize task based on tags, title, and description
+   */
+  private categorizeTask(task: Task): 'feature' | 'bug' | 'refactor' | 'security' | 'performance' | 'quality' | 'test' {
+    const text = `${task.title} ${task.description} ${task.tags?.join(' ') || ''}`.toLowerCase();
+
+    // Check for security-related keywords
+    if (text.includes('security') || text.includes('vulnerability') || text.includes('auth') ||
+        text.includes('injection') || text.includes('xss') || text.includes('csrf')) {
+      return 'security';
+    }
+
+    // Check for performance keywords
+    if (text.includes('performance') || text.includes('slow') || text.includes('optimize') ||
+        text.includes('latency') || text.includes('memory') || text.includes('cpu')) {
+      return 'performance';
+    }
+
+    // Check for bug keywords
+    if (text.includes('bug') || text.includes('fix') || text.includes('error') ||
+        text.includes('broken') || text.includes('fail') || text.includes('crash')) {
+      return 'bug';
+    }
+
+    // Check for refactor keywords
+    if (text.includes('refactor') || text.includes('clean up') || text.includes('reorganize') ||
+        text.includes('rewrite') || text.includes('simplify')) {
+      return 'refactor';
+    }
+
+    // Check for test keywords
+    if (text.includes('test') || text.includes('testing') || text.includes('coverage') ||
+        text.includes('spec') || text.includes('tdd')) {
+      return 'test';
+    }
+
+    // Check for quality keywords
+    if (text.includes('review') || text.includes('quality') || text.includes('lint') ||
+        text.includes('code smell') || text.includes('technical debt')) {
+      return 'quality';
+    }
+
+    // Default to feature
+    return 'feature';
+  }
+
+  /**
+   * Get the appropriate skill for a task category
+   */
+  private getSkillForCategory(category: string): string {
+    const skillMap: Record<string, string> = {
+      'feature': 'ultra-team',
+      'bug': 'ultra-debugging',
+      'refactor': 'ultra-code-review',
+      'security': 'ultra-security-review',
+      'performance': 'ultra-quality-review',
+      'quality': 'ultra-quality-review',
+      'test': 'ultra-tdd'
+    };
+
+    return skillMap[category] || 'ultra-team';
   }
 
   /**
