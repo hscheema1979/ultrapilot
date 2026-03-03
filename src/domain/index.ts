@@ -97,6 +97,18 @@ export {
   type TeamOrchestratorConfig
 } from './TeamOrchestrator.js';
 
+// Export UltraLead and related types
+export {
+  UltraLead,
+  createUltraLead,
+  type OwnerGoals,
+  type DomainSize,
+  type DomainHealth,
+  type WorkRequest,
+  type TaskBreakdown,
+  type UltraLeadConfig
+} from './UltraLead.js';
+
 // Export DomainProcessManager and related types
 export {
   DomainProcessManager,
