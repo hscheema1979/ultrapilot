@@ -68,6 +68,17 @@ export {
   type HeartbeatState
 } from './AutoloopDaemon.js';
 
+// Export WorkingManager and related types
+export {
+  WorkingManager,
+  createWorkingManager,
+  type TaskComplexity,
+  type TaskSizeEstimate,
+  type ExecutionStrategy,
+  type TeamCoordination,
+  type WorkingManagerConfig
+} from './WorkingManager.js';
+
 // Export DomainProcessManager and related types
 export {
   DomainProcessManager,

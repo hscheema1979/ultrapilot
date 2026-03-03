@@ -16,6 +16,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { DomainManager, createDomainManager } from './DomainManager.js';
 import { DomainConfig } from './DomainInitializer.js';
+import { WorkingManager, createWorkingManager } from './WorkingManager.js';
 
 /**
  * Autoloop state
@@ -85,6 +86,7 @@ export class AutoloopDaemon extends EventEmitter {
   private domainManager: DomainManager;
   private domainConfig: DomainConfig;
   private ultraPath: string;
+  private workingManager: WorkingManager;
 
   // State
   private running: boolean = false;
@@ -105,6 +107,14 @@ export class AutoloopDaemon extends EventEmitter {
     this.ultraPath = path.join(config.workspacePath, '.ultra');
     this.domainManager = createDomainManager({
       domainAgency: { enabled: false } // Start without domain-agency
+    });
+
+    // Initialize working manager (the "working manager" capability)
+    this.workingManager = createWorkingManager({
+      maxConcurrentTeams: 5,
+      maxWorkersPerTeam: 5,
+      preferIndividualExecutionUnderHours: 4,
+      preferTeamExecutionOverHours: 8
     });
 
     // Load domain config
@@ -320,13 +330,18 @@ export class AutoloopDaemon extends EventEmitter {
       endTime,
       duration,
       tasksProcessed,
-      routinesExecuted: routineResults.length,
+      routinesExecuted: routineResults,
       errors
     } as CycleResult);
   }
 
   /**
    * Process tasks from queues
+   * Implements the working manager pattern:
+   * - Analyze task size/complexity
+   * - Execute small tasks myself
+   * - Spawn teams for medium/large tasks
+   * - Coordinate multiple teams for huge tasks
    */
   private async processTasks(): Promise<number> {
     const taskQueue = this.domainManager.getTaskQueue();
@@ -334,10 +349,100 @@ export class AutoloopDaemon extends EventEmitter {
 
     // Get next task from intake
     const nextTask = taskQueue.getNextTask();
-    if (nextTask) {
-      // TODO: Implement task assignment and execution
-      // For now, just count it
-      processed++;
+    if (!nextTask) {
+      return 0;
+    }
+
+    try {
+      console.log(`\n   [Autoloop] Processing task: ${nextTask.title}`);
+      console.log(`   [Autoloop] Task ID: ${nextTask.id}`);
+
+      // Step 1: Analyze task and determine execution strategy
+      const strategy = this.workingManager.analyzeTask(nextTask);
+      console.log(`   [Autoloop] Strategy: ${strategy.approach}`);
+
+      // Step 2: Assign task to ultra-loop (this moves it to in-progress)
+      await taskQueue.assignTask(nextTask.id, 'executor', 'ultra-loop');
+
+      // Step 3: Execute based on strategy
+      let result;
+
+      if (strategy.executeMyself && !strategy.spawnTeam) {
+        // SMALL task: Execute myself
+        console.log(`   [Autoloop] → Executing task myself (individual execution)`);
+        result = await this.workingManager.executeTaskMyself(nextTask);
+
+      } else if (strategy.executeMyself && strategy.spawnTeam && !strategy.spawnMultipleTeams) {
+        // MEDIUM task: Do parts myself + spawn team
+        console.log(`   [Autoloop] → Hybrid approach: overseeing team execution`);
+        const teamId = await this.workingManager.spawnUltraTeam(nextTask, strategy.workerCount);
+        console.log(`   [Autoloop] → Team ${teamId} spawned with ${strategy.workerCount} workers`);
+
+        // TODO: Monitor team progress and coordinate
+        result = {
+          success: true,
+          output: `Task assigned to team ${teamId}`,
+          metadata: {
+            teamId,
+            executedBy: 'ultra-loop',
+            executionMethod: 'hybrid',
+            workersSpawned: strategy.workerCount
+          }
+        };
+
+      } else if (strategy.spawnMultipleTeams) {
+        // LARGE/HUGE task: Spawn multiple teams, coordinate them
+        console.log(`   [Autoloop] → Multi-team coordination: ${strategy.teamCount} teams`);
+        const teamIds = await this.workingManager.spawnMultipleTeams(
+          nextTask,
+          strategy.teamCount,
+          strategy.workerCount
+        );
+        console.log(`   [Autoloop] → Teams spawned: ${teamIds.join(', ')}`);
+
+        // Coordinate teams
+        await this.workingManager.coordinateTeams(nextTask, teamIds);
+
+        result = {
+          success: true,
+          output: `Task coordinated across ${teamIds.length} teams`,
+          metadata: {
+            teamIds,
+            executedBy: 'ultra-loop',
+            executionMethod: 'coordination',
+            workersSpawned: strategy.workerCount,
+            teamsSpawned: strategy.teamCount
+          }
+        };
+
+      } else {
+        // Fallback: Execute myself
+        console.log(`   [Autoloop] → Fallback: executing task myself`);
+        result = await this.workingManager.executeTaskMyself(nextTask);
+      }
+
+      // Step 4: Update task with result
+      if (result?.success) {
+        taskQueue.completeTask(nextTask.id, result);
+        console.log(`   [Autoloop] ✅ Task completed successfully`);
+        processed++;
+      } else {
+        taskQueue.failTask(nextTask.id, result?.error || 'Unknown error');
+        console.log(`   [Autoloop] ❌ Task failed: ${result?.error}`);
+        this.totalErrors++;
+      }
+
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error(`   [Autoloop] ❌ Error processing task: ${errorMsg}`);
+      this.totalErrors++;
+
+      // Mark task as failed
+      try {
+        taskQueue.failTask(nextTask.id, errorMsg);
+      } catch (failError) {
+        console.error(`   [Autoloop] ❌ Failed to mark task as failed: ${failError}`);
+      }
     }
 
     return processed;
