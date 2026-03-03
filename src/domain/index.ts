@@ -126,6 +126,85 @@ export {
   type GeneratedPrompt
 } from './DomainAgentPromptEngineer.js';
 
+// Export PlanWatcher and related types
+export {
+  PlanWatcher,
+  createPlanWatcher,
+  type PlanParseResult,
+  type PlanTask,
+  type PlanPhase,
+  type PlanWatcherConfig,
+  type PlanWatcherEvents,
+  PlanTaskStatus,
+  PlanTaskPriority
+} from './PlanWatcher.js';
+
+/**
+ * Ultra-Lead Workflow Orchestration (Task 2.1c)
+ *
+ * Complete workflow orchestration system for executing Phases 2-5:
+ * - Phase 2: Queue-Based Task Processing
+ * - Phase 3: QA Cycles (UltraQA)
+ * - Phase 4: Multi-Perspective Validation
+ * - Phase 5: Evidence-Based Verification
+ */
+
+// Export PhaseExecutor
+export {
+  PhaseExecutor,
+  createPhaseExecutor,
+  type PhaseDefinition,
+  type PhaseState,
+  type PhaseResult,
+  type PhaseExecutorConfig
+} from './PhaseExecutor.js';
+
+// Export QACoordinator
+export {
+  QACoordinator,
+  createQACoordinator,
+  detectFundamentalIssues,
+  type QAStep,
+  type QAStepResult,
+  type QACycleResult,
+  type QAConfig,
+  type QAReport
+} from './QACoordinator.js';
+
+// Export ValidationCoordinator
+export {
+  ValidationCoordinator,
+  createValidationCoordinator,
+  type ReviewerType,
+  type ReviewDecision,
+  type ReviewResult,
+  type ValidationResult,
+  type ValidationConfig
+} from './ValidationCoordinator.js';
+
+// Export VerificationEngine
+export {
+  VerificationEngine,
+  createVerificationEngine,
+  type AcceptanceCriterion,
+  type TestEvidence,
+  type EvidenceCollection,
+  type VerificationResult,
+  type CompletionReport as OrchestratorCompletionReport,
+  type VerificationConfig
+} from './VerificationEngine.js';
+
+// Export UltraLeadWorkflowOrchestrator (Main orchestration engine)
+export {
+  UltraLeadWorkflowOrchestrator,
+  createUltraLeadWorkflowOrchestrator,
+  type OperationalPlan as OrchestratorOperationalPlan,
+  type WorkflowExecutionState,
+  type WorkflowExecutionResult,
+  type OrchestratorConfig,
+  type CompletionReport
+} from './UltraLeadWorkflowOrchestrator.js';
+
 /**
  * Default export - DomainManager class
  */

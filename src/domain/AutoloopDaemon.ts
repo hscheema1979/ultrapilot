@@ -11,7 +11,6 @@
  * "The boulder never stops."
  */
 
-import { EventEmitter } from 'events';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { exec } from 'child_process';
@@ -20,6 +19,9 @@ import { DomainManager, createDomainManager } from './DomainManager.js';
 import { DomainConfig } from './DomainInitializer.js';
 import { WorkingManager, createWorkingManager } from './WorkingManager.js';
 import { Task } from './TaskQueue.js';
+import { AgentMessageBus } from '../agent-comms/AgentMessageBus.js';
+import { SessionManager } from '../session/SessionManager.js';
+import { createAutoloopEventPublisher, AutoloopEventPublisher } from './AutoloopEventPublisher.js';
 
 const execAsync = promisify(exec);
 
@@ -86,12 +88,17 @@ export interface AutoloopConfig {
 /**
  * Autoloop Daemon class
  */
-export class AutoloopDaemon extends EventEmitter {
+export class AutoloopDaemon {
   private config: AutoloopConfig;
   private domainManager: DomainManager;
   private domainConfig: DomainConfig;
   private ultraPath: string;
   private workingManager: WorkingManager;
+
+  // Message bus and session management
+  private messageBus: AgentMessageBus;
+  private sessionManager: SessionManager;
+  private eventPublisher: AutoloopEventPublisher;
 
   // State
   private running: boolean = false;
@@ -105,9 +112,7 @@ export class AutoloopDaemon extends EventEmitter {
   private totalRoutinesExecuted: number = 0;
   private totalErrors: number = 0;
 
-  constructor(config: AutoloopConfig) {
-    super();
-
+  constructor(config: AutoloopConfig, messageBus?: AgentMessageBus, sessionManager?: SessionManager) {
     this.config = config;
     this.ultraPath = path.join(config.workspacePath, '.ultra');
     this.domainManager = createDomainManager({
@@ -120,6 +125,21 @@ export class AutoloopDaemon extends EventEmitter {
       maxWorkersPerTeam: 5,
       preferIndividualExecutionUnderHours: 4,
       preferTeamExecutionOverHours: 8
+    });
+
+    // Initialize message bus and session manager (or use provided instances)
+    this.messageBus = messageBus || new AgentMessageBus({
+      dbPath: path.join(this.ultraPath, 'state', 'messages.db')
+    });
+
+    this.sessionManager = sessionManager || new SessionManager();
+
+    // Initialize event publisher
+    this.eventPublisher = createAutoloopEventPublisher({
+      workspacePath: config.workspacePath,
+      messageBus: this.messageBus,
+      sessionManager: this.sessionManager,
+      enabled: true
     });
 
     // Load domain config
@@ -138,6 +158,9 @@ export class AutoloopDaemon extends EventEmitter {
     console.log('🚀 Starting autoloop daemon...');
     console.log(`   Workspace: ${this.config.workspacePath}`);
     console.log(`   Cycle time: ${this.config.cycleTime}s`);
+
+    // Initialize event publisher (creates AUTOLOOP session)
+    await this.eventPublisher.initialize();
 
     // Load domain configuration
     await this.loadDomainConfig();
@@ -163,10 +186,12 @@ export class AutoloopDaemon extends EventEmitter {
     // Start heartbeat cycle
     this.startHeartbeat();
 
-    // Emit started event
-    this.emit('started');
+    // Publish daemon started event
+    await this.eventPublisher.publishDaemonStarted();
+
     console.log('✅ Autoloop daemon started');
     console.log(`   PID: ${process.pid}`);
+    console.log(`   Session: ${this.eventPublisher.getSessionId() || 'N/A'}`);
     console.log('   "The boulder never stops." 🪨\n');
   }
 
@@ -187,8 +212,14 @@ export class AutoloopDaemon extends EventEmitter {
       this.cycleTimer = undefined;
     }
 
+    // Shutdown event publisher (publishes stopped event, closes session)
+    await this.eventPublisher.shutdown();
+
     // Stop domain manager
     await this.domainManager.stop();
+
+    // Close message bus connection
+    await this.messageBus.close();
 
     // Update autoloop state file
     await this.updateAutoloopState({
@@ -200,34 +231,37 @@ export class AutoloopDaemon extends EventEmitter {
       lastCycleDuration: null
     });
 
-    this.emit('stopped');
     console.log('✅ Autoloop daemon stopped');
   }
 
   /**
    * Pause the autoloop (keeps running but skips cycles)
    */
-  pause(): void {
+  async pause(): Promise<void> {
     if (!this.running) {
       return;
     }
 
     this.paused = true;
     console.log('⏸️  Autoloop paused');
-    this.emit('paused');
+
+    // Publish paused event
+    await this.eventPublisher.publishDaemonPaused();
   }
 
   /**
    * Resume the autoloop
    */
-  resume(): void {
+  async resume(): Promise<void> {
     if (!this.running || !this.paused) {
       return;
     }
 
     this.paused = false;
     console.log('▶️  Autoloop resumed');
-    this.emit('resumed');
+
+    // Publish resumed event
+    await this.eventPublisher.publishDaemonResumed();
   }
 
   /**
@@ -298,6 +332,15 @@ export class AutoloopDaemon extends EventEmitter {
     this.totalTasksProcessed += tasksProcessed;
     this.totalRoutinesExecuted += routineResults.length;
 
+    // Publish heartbeat event
+    await this.eventPublisher.publishHeartbeat(cycleNumber, {
+      uptime: this.startTime ? Date.now() - this.startTime.getTime() : 0,
+      cyclesCompleted: this.cycleCount,
+      tasksProcessed: this.totalTasksProcessed,
+      routinesExecuted: this.totalRoutinesExecuted,
+      errors: this.totalErrors
+    });
+
     // Update heartbeat state
     await this.updateHeartbeatState({
       status: this.paused ? 'paused' : 'running',
@@ -318,6 +361,17 @@ export class AutoloopDaemon extends EventEmitter {
       lastCycleDuration: duration
     });
 
+    // Publish cycle complete event
+    await this.eventPublisher.publishCycleComplete({
+      cycleNumber,
+      startTime,
+      endTime,
+      duration,
+      tasksProcessed,
+      routinesExecuted: routineResults,
+      errors
+    });
+
     // Log cycle summary
     if (this.config.verboseLogging || errors.length > 0) {
       console.log(`   ✅ Cycle #${cycleNumber} complete (${duration}ms)`);
@@ -327,17 +381,6 @@ export class AutoloopDaemon extends EventEmitter {
         console.log(`      Errors: ${errors.length}`);
       }
     }
-
-    // Emit cycle complete event
-    this.emit('cycle', {
-      cycleNumber,
-      startTime,
-      endTime,
-      duration,
-      tasksProcessed,
-      routinesExecuted: routineResults,
-      errors
-    } as CycleResult);
   }
 
   /**
@@ -362,6 +405,10 @@ export class AutoloopDaemon extends EventEmitter {
       console.log(`\n   [Autoloop] Processing task: ${nextTask.title}`);
       console.log(`   [Autoloop] Task ID: ${nextTask.id}`);
 
+      // Publish task queued event
+      const category = this.categorizeTask(nextTask);
+      await this.eventPublisher.publishTaskQueued(nextTask.id, nextTask.title, category);
+
       // Step 1: Analyze task and determine execution strategy
       const strategy = this.workingManager.analyzeTask(nextTask);
       console.log(`   [Autoloop] Strategy: ${strategy.approach}`);
@@ -378,11 +425,28 @@ export class AutoloopDaemon extends EventEmitter {
       if (result?.success) {
         taskQueue.completeTask(nextTask.id, result);
         console.log(`   [Autoloop] ✅ Task completed successfully`);
+
+        // Publish task completed event
+        await this.eventPublisher.publishTaskCompleted(
+          nextTask.id,
+          nextTask.title,
+          result,
+          result.metadata?.duration as number || 0
+        );
+
         processed++;
       } else {
         taskQueue.failTask(nextTask.id, result?.error || 'Unknown error');
         console.log(`   [Autoloop] ❌ Task failed: ${result?.error}`);
         this.totalErrors++;
+
+        // Publish task failed event
+        await this.eventPublisher.publishTaskFailed(
+          nextTask.id,
+          nextTask.title,
+          result?.error || 'Unknown error',
+          result.metadata?.duration as number || 0
+        );
       }
 
     } catch (error) {
@@ -420,6 +484,9 @@ export class AutoloopDaemon extends EventEmitter {
 
       console.log(`   [Autoloop] Task category: ${category}`);
       console.log(`   [Autoloop] Routing to skill: ${skill}`);
+
+      // Publish task started event
+      await this.eventPublisher.publishTaskStarted(task.id, task.title, skill);
 
       // Step 2: Build prompt for the skill
       const prompt = `/${skill} ${task.title}
@@ -499,6 +566,10 @@ Autoloop will trigger again in 60 seconds to process more tasks.`;
 
       console.log(`   [Autoloop] Agent completed in ${duration}ms`);
 
+      // Publish agent spawned event
+      const agentId = `agent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      await this.eventPublisher.publishAgentSpawned(agentId, skill, task.id);
+
       return {
         success,
         output,
@@ -508,7 +579,8 @@ Autoloop will trigger again in 60 seconds to process more tasks.`;
           category,
           skill,
           duration,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          agentId
         }
       };
 
@@ -618,6 +690,9 @@ Autoloop will trigger again in 60 seconds to process more tasks.`;
       const result = await this.executeRoutine(routineConfig);
       results.push(result);
 
+      // Publish routine executed event
+      await this.eventPublisher.publishRoutineExecuted(result);
+
       // Update routine file with last run
       routineConfig.lastRun = new Date().toISOString();
       if (!result.success) {
@@ -688,7 +763,7 @@ Autoloop will trigger again in 60 seconds to process more tasks.`;
 
         if (elapsed > threshold) {
           console.warn(`   ⚠️  Stuck task detected: ${task.id} (${Math.floor(elapsed / 1000 / 60)}min)`);
-          this.emit('stuckTask', task);
+          // Could publish stuck task event here if needed
         }
       }
     }
@@ -696,7 +771,7 @@ Autoloop will trigger again in 60 seconds to process more tasks.`;
     // Check queue health
     if (stats.tasks.failed > 10) {
       console.warn(`   ⚠️  High failure count: ${stats.tasks.failed} failed tasks`);
-      this.emit('highFailureCount', stats.tasks.failed);
+      // Could publish high failure count event here if needed
     }
   }
 

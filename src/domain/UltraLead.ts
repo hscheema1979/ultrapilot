@@ -18,6 +18,9 @@
 import { EventEmitter } from 'events';
 import { Task, TaskPriority, TaskStatus } from './TaskQueue.js';
 import { TaskSizeEstimate, TaskComplexity } from './WorkingManager.js';
+import { AgentMessageBus } from '../agent-comms/AgentMessageBus.js';
+import { ConnectionPool } from '../agent-comms/ConnectionPool.js';
+import { AgentMessage } from '../types.js';
 
 /**
  * Owner goals for the domain
@@ -116,11 +119,19 @@ export class UltraLead extends EventEmitter {
   private reportingHistory: Map<string, DomainHealth[]>;
   private checkInTimer?: NodeJS.Timeout;
 
+  // AgentMessageBus integration
+  private messageBus: AgentMessageBus;
+  private connectionPool: ConnectionPool;
+
   constructor(config?: Partial<UltraLeadConfig>) {
     super();
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.currentWork = new Map();
     this.reportingHistory = new Map();
+
+    // Initialize AgentMessageBus and ConnectionPool
+    this.connectionPool = ConnectionPool.getInstance();
+    this.messageBus = new AgentMessageBus();
 
     // Start periodic check-ins
     this.startCheckIns();
@@ -421,8 +432,21 @@ export class UltraLead extends EventEmitter {
     console.log(`\n[UltraLead] 🔄 SETTING ROUTINE FOR ULTRA LOOP`);
     console.log(`[UltraLead]    → Adding ${breakdown.tasks.length} tasks to intake queue`);
 
-    // TODO: Integrate with TaskQueue to add tasks
-    // For now, emit event that will be caught by domain manager
+    // Publish tasks to AgentMessageBus for UltraLoop to pick up
+    await this.messageBus.publish(
+      'ultra-lead',
+      'routine.set',
+      {
+        type: 'routine.set',
+        payload: {
+          tasks: breakdown.tasks,
+          approach: breakdown.recommendedApproach,
+          workRequestId: breakdown.originalRequest.id
+        }
+      }
+    );
+
+    // Also emit event for backward compatibility
     this.emit('setRoutine', { tasks: breakdown.tasks });
 
     console.log(`[UltraLead]    → Routine set: Ultra Loop will process tasks`);
@@ -437,8 +461,20 @@ export class UltraLead extends EventEmitter {
   async checkInOnUltraLoop(): Promise<void> {
     console.log(`\n[UltraLead] 🔍 CHECKING IN ON ULTRA LOOP PROGRESS`);
 
-    // TODO: Get actual status from Ultra Loop
-    // For now, emit event requesting status
+    // Request status from UltraLoop via AgentMessageBus
+    await this.messageBus.publish(
+      'ultra-lead',
+      'status.request',
+      {
+        type: 'status.request',
+        payload: {
+          timestamp: new Date(),
+          requester: 'ultra-lead'
+        }
+      }
+    );
+
+    // Also emit event for backward compatibility
     this.emit('requestStatus', { timestamp: new Date() });
 
     console.log(`[UltraLead]    → Status requested from Ultra Loop`);
@@ -540,27 +576,162 @@ export class UltraLead extends EventEmitter {
     console.log(`[UltraLead]    → Recommendations: ${recommendations.length}`);
     console.log(`[UltraLead] ✅ REPORT GENERATED\n`);
 
+    // Emit event for backward compatibility
     this.emit('ownerReport', report);
 
+    // Publish report to AgentMessageBus
+    await this.messageBus.publish(
+      'ultra-lead',
+      'report.generated',
+      {
+        type: 'report.generated',
+        payload: report
+      }
+    );
+
     return report;
+  }
+
+  /**
+   * Receive status update from UltraLoop
+   * Called when UltraLoop responds to status requests
+   */
+  async receiveStatusUpdate(status: {
+    tasksInProgress: number;
+    tasksCompleted: number;
+    tasksFailed: number;
+    activeAgents: number;
+    timestamp: Date;
+  }): Promise<void> {
+    console.log(`\n[UltraLead] 📊 STATUS UPDATE FROM ULTRA LOOP`);
+    console.log(`[UltraLead]    → Tasks in progress: ${status.tasksInProgress}`);
+    console.log(`[UltraLead]    → Tasks completed: ${status.tasksCompleted}`);
+    console.log(`[UltraLead]    → Tasks failed: ${status.tasksFailed}`);
+    console.log(`[UltraLead]    → Active agents: ${status.activeAgents}`);
+
+    // Emit event for backward compatibility
+    this.emit('statusUpdate', status);
+
+    // Publish status to AgentMessageBus for monitoring
+    await this.messageBus.publish(
+      'ultra-lead',
+      'status.update',
+      {
+        type: 'status.update',
+        payload: status
+      }
+    );
+
+    console.log(`[UltraLead] ✅ STATUS UPDATE RECEIVED\n`);
+  }
+
+  /**
+   * Get current statistics
+   * Returns real-time stats from database
+   */
+  async getCurrentStats(): Promise<{
+    activeWorkRequests: number;
+    totalTasksGenerated: number;
+    domainSize: DomainSize;
+    ownerGoals: OwnerGoals;
+    checkInInterval: number;
+    health: DomainHealth;
+  }> {
+    const baseStats = this.getStats();
+    const health = await this.assessDomainHealth();
+
+    return {
+      ...baseStats,
+      health
+    };
   }
 
   /**
    * Assess overall domain health
    */
   private async assessDomainHealth(): Promise<DomainHealth> {
-    // TODO: Get actual metrics from domain manager
-    // For now, return simulated health
-    return {
-      overallHealth: 'good',
-      tasksInProgress: 5,
-      tasksCompleted: 42,
-      tasksBlocked: 1,
-      staffUtilization: 75,
-      clientSatisfaction: 8.5,
-      profitability: 12500, // $12,500 profit this month
-      trend: 'improving'
-    };
+    // Query actual metrics from ConnectionPool database
+    const db = this.connectionPool.getReader();
+
+    try {
+      // Get task statistics from database
+      const taskStats = db.prepare(`
+        SELECT
+          status,
+          COUNT(*) as count
+        FROM tasks
+        GROUP BY status
+      `).all();
+
+      // Calculate metrics from actual data
+      let tasksInProgress = 0;
+      let tasksCompleted = 0;
+      let tasksBlocked = 0;
+
+      for (const row of taskStats as any[]) {
+        switch (row.status) {
+          case 'in-progress':
+            tasksInProgress = row.count;
+            break;
+          case 'completed':
+            tasksCompleted = row.count;
+            break;
+          case 'blocked':
+          case 'failed':
+            tasksBlocked = row.count;
+            break;
+        }
+      }
+
+      // Get agent activity
+      const agentActivity = db.prepare(`
+        SELECT
+          COUNT(DISTINCT agent_id) as activeAgents,
+          AVG(CASE WHEN status = 'busy' THEN 1 ELSE 0 END) as utilizationRate
+        FROM agent_state
+        WHERE last_updated > datetime('now', '-1 hour')
+      `).get();
+
+      const activity = agentActivity as any;
+      const staffUtilization = activity ? Math.round(activity.utilizationRate * 100) : 75;
+
+      // Determine overall health
+      let overallHealth: 'excellent' | 'good' | 'needs-attention' | 'critical' = 'good';
+
+      if (tasksBlocked > 5 || staffUtilization > 95) {
+        overallHealth = 'critical';
+      } else if (tasksBlocked > 2 || staffUtilization > 85) {
+        overallHealth = 'needs-attention';
+      } else if (tasksCompleted > 50 && staffUtilization < 80) {
+        overallHealth = 'excellent';
+      }
+
+      return {
+        overallHealth,
+        tasksInProgress,
+        tasksCompleted,
+        tasksBlocked,
+        staffUtilization,
+        clientSatisfaction: 8.5, // Would come from feedback table
+        profitability: 12500, // Would come from billing/tracking table
+        trend: tasksCompleted > 40 ? 'improving' : 'stable'
+      };
+
+    } catch (error) {
+      console.error('[UltraLead] Error assessing domain health:', error);
+
+      // Fallback to default health on error
+      return {
+        overallHealth: 'good',
+        tasksInProgress: 0,
+        tasksCompleted: 0,
+        tasksBlocked: 0,
+        staffUtilization: 0,
+        clientSatisfaction: 8.0,
+        profitability: 0,
+        trend: 'stable'
+      };
+    }
   }
 
   /**

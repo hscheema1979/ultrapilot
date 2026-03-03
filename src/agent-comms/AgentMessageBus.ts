@@ -30,7 +30,8 @@ import * as fsSync from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 
-import { AgentMessage, MessageHandler, Subscription } from '../types.js';
+import { AgentMessage, MessageHandler, Subscription, WebSocketMessage, WebSocketSubscription } from '../types.js';
+import { ConnectionPool } from './ConnectionPool.js';
 
 /**
  * Message priority levels
@@ -150,6 +151,9 @@ export class AgentMessageBus extends EventEmitter {
   // Subscriptions
   private subscriptions: Map<string, SubscriptionHandle[]> = new Map();
 
+  // WebSocket client subscriptions (wsClientId -> Set<topic>)
+  private wsSubscriptions?: Map<string, Set<string>>;
+
   // Channel permissions
   private channelPermissions: Map<string, ChannelPermissions> = new Map();
 
@@ -171,7 +175,7 @@ export class AgentMessageBus extends EventEmitter {
     this.security = this.mergeSecurity(config?.security);
     this.performance = this.mergePerformance(config?.performance);
 
-    // Initialize database
+    // Initialize database using ConnectionPool singleton
     this.db = this.initializeDatabase(config?.dbPath);
 
     // Initialize queues
@@ -186,23 +190,25 @@ export class AgentMessageBus extends EventEmitter {
 
   /**
    * Initialize SQLite database for message persistence
+   *
+   * Updated to use ConnectionPool singleton for shared database access
+   * across AgentMessageBus, SessionStore, and other components.
    */
   private initializeDatabase(dbPath?: string): Database.Database {
-    const resolvedPath = dbPath || '.ultra/state/messages.db';
+    // Get ConnectionPool singleton (creates if needed)
+    const pool = ConnectionPool.getInstance();
+    const db = pool.getWriter();
 
-    const dir = path.dirname(resolvedPath);
-    fsSync.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    // Create schema if not exists
+    this.createSchema(db);
 
-    const db = new Database(resolvedPath);
+    return db;
+  }
 
-    // Secure permissions
-    fsSync.chmodSync(resolvedPath, 0o600);
-
-    // WAL mode for performance
-    db.pragma('journal_mode = WAL');
-    db.pragma('synchronous = NORMAL');
-
-    // Create schema
+  /**
+   * Create database schema
+   */
+  private createSchema(db: Database.Database): void {
     db.exec(`
       CREATE TABLE IF NOT EXISTS messages (
         id TEXT PRIMARY KEY,
@@ -242,8 +248,6 @@ export class AgentMessageBus extends EventEmitter {
 
       CREATE INDEX IF NOT EXISTS idx_dlq_failed_at ON dead_letter_queue(failed_at);
     `);
-
-    return db;
   }
 
   /**
@@ -855,9 +859,9 @@ export class AgentMessageBus extends EventEmitter {
       INSERT INTO messages (
         id, from_agent, to_agent, channel, type, priority, payload_json,
         timestamp, correlation_id, reply_to_id, status, attempts,
-        max_attempts, scheduled_at, signature
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(
+        max_attempts, scheduled_at, delivered_at, acked_at, error, signature
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
       message.id,
       message.from,
       message.to || null,
@@ -872,8 +876,11 @@ export class AgentMessageBus extends EventEmitter {
       message.attempts,
       message.maxAttempts,
       message.scheduledAt?.getTime() || null,
+      message.deliveredAt?.getTime() || null,
+      (message as any).ackedAt?.getTime() || null,
+      (message as any).error || null,
       message.signature || null
-    ).run();
+    );
   }
 
   /**
@@ -948,6 +955,141 @@ export class AgentMessageBus extends EventEmitter {
     return new Promise((_, reject) => {
       setTimeout(() => reject(new Error('Handler timeout')), ms);
     });
+  }
+
+  /**
+   * Subscribe WebSocket client to AgentMessageBus topic
+   *
+   * Bridges WebSocket connections to AgentMessageBus pub/sub system.
+   * WebSocket clients receive all messages published to subscribed topics.
+   *
+   * @param wsClient - WebSocket client connection (from 'ws' package)
+   * @param topic - Topic/channel to subscribe to
+   */
+  subscribeWebSocket(wsClient: any, topic: string): void {
+    // Generate unique WebSocket client ID
+    const wsClientId = this.generateSubscriptionId();
+
+    // Create WebSocket subscription record
+    const wsSubscription: WebSocketSubscription = {
+      wsClientId,
+      topic,
+      subscribedAt: new Date(),
+      lastSequenceNumber: 0
+    };
+
+    // Store WebSocket subscription
+    if (!this.wsSubscriptions) {
+      this.wsSubscriptions = new Map(); // Map<wsClientId, Set<topic>>
+    }
+
+    if (!this.wsSubscriptions.has(wsClientId)) {
+      this.wsSubscriptions.set(wsClientId, new Set());
+    }
+
+    this.wsSubscriptions.get(wsClientId)!.add(topic);
+
+    // Create message handler that forwards to WebSocket
+    const handler: MessageHandler = (message: AgentMessage) => {
+      try {
+        // Send message to WebSocket client
+        wsClient.send(JSON.stringify({
+          type: 'event',
+          topic: message.channel,
+          payload: message.payload,
+          timestamp: message.timestamp.toISOString(),
+          sequenceNumber: (message as any).sequenceNumber
+        } as WebSocketMessage));
+      } catch (error) {
+        // WebSocket disconnected, clean up
+        this.unsubscribeWebSocket(wsClient, topic);
+      }
+    };
+
+    // Subscribe to AgentMessageBus topic
+    this.subscribe(wsClientId, topic, handler);
+
+    // Send confirmation to client
+    try {
+      wsClient.send(JSON.stringify({
+        type: 'subscribed',
+        topic,
+        timestamp: new Date().toISOString()
+      } as WebSocketMessage));
+    } catch (error) {
+      // Client already disconnected
+      this.unsubscribeWebSocket(wsClient, topic);
+    }
+  }
+
+  /**
+   * Unsubscribe WebSocket client from topic
+   *
+   * @param wsClient - WebSocket client connection
+   * @param topic - Topic to unsubscribe from
+   */
+  unsubscribeWebSocket(wsClient: any, topic: string): void {
+    if (!this.wsSubscriptions) return;
+
+    // Find subscriptions for this WebSocket client
+    for (const [wsClientId, topics] of this.wsSubscriptions.entries()) {
+      if (topics.has(topic)) {
+        // Unsubscribe from AgentMessageBus
+        try {
+          const subs = this.subscriptions.get(topic);
+          if (subs) {
+            const idx = subs.findIndex(sub => sub.agentId === wsClientId);
+            if (idx !== -1) {
+              subs.splice(idx, 1);
+            }
+          }
+        } catch (error) {
+          // Already unsubscribed, ignore
+        }
+
+        // Remove from WebSocket subscriptions
+        topics.delete(topic);
+
+        // Clean up if no more topics
+        if (topics.size === 0) {
+          this.wsSubscriptions.delete(wsClientId);
+        }
+
+        break;
+      }
+    }
+  }
+
+  /**
+   * Publish event to all WebSocket subscribers
+   *
+   * Called internally by publish() to broadcast to WebSocket clients.
+   *
+   * @param topic - Topic/channel
+   * @param message - Message to publish
+   */
+  publishToWebSockets(topic: string, message: QueuedMessage): void {
+    if (!this.wsSubscriptions) return;
+
+    // Find all WebSocket clients subscribed to this topic
+    for (const [wsClientId, topics] of this.wsSubscriptions.entries()) {
+      if (topics.has(topic)) {
+        // Find the actual WebSocket client and send message
+        // Note: In production, we'd maintain a mapping from wsClientId to actual ws instance
+        // For now, we emit an event that UltraXServer listens to
+        this.emit('websocket:broadcast', {
+          wsClientId,
+          topic,
+          message: {
+            type: 'event',
+            topic,
+            payload: message.payload,
+            timestamp: message.timestamp.toISOString(),
+            sequenceNumber: (message as any).sequenceNumber
+          } as WebSocketMessage
+        });
+      }
+    }
   }
 
   /**

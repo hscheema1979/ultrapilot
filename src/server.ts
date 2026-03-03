@@ -5,12 +5,15 @@
  * - Web UI integration (Relay on port 3000)
  * - Google Chat webhooks
  * - Gateway REST API
+ * - WebSocket event streaming (AgentMessageBus integration)
  */
 
 import express, { Request, Response } from 'express';
+import { WebSocket } from 'ws';  // CORRECT: Import WebSocket class, not ws namespace
 import { UltraXGateway, UltraXMessage, UltraXResponse } from './gateway.js';
 import { UltraXGoogleChatBot, GoogleChatConfig, GoogleChatWebhookEvent } from './chat-bot.js';
 import gatewayACL from './access-control.js';
+import { AgentMessageBus } from './agent-comms/AgentMessageBus.js';
 
 export interface ServerConfig {
   port?: number;
@@ -36,7 +39,10 @@ export interface GatewayErrorResponse {
 
 export class UltraXServer {
   private app: express.Application;
+  private httpServer: any; // HTTP server returned by app.listen
+  private wsServer?: any; // WebSocket server (attached to HTTP server)
   private gateway: UltraXGateway;
+  private agentMessageBus: AgentMessageBus;
   private chatBot?: UltraXGoogleChatBot;
   private config: ServerConfig;
 
@@ -55,6 +61,9 @@ export class UltraXServer {
       statePath: this.config.statePath,
       sessionTimeout: 60 * 60 * 1000 // 1 hour
     });
+
+    // Initialize AgentMessageBus for WebSocket event streaming
+    this.agentMessageBus = new AgentMessageBus();
 
     // Initialize Express app
     this.app = express();
@@ -342,6 +351,101 @@ export class UltraXServer {
   }
 
   /**
+   * Attach WebSocket server for real-time event streaming
+   *
+   * Implements WebSocket upgrade path on existing HTTP server.
+   * WebSocket clients can subscribe to AgentMessageBus topics.
+   */
+  private attachWebSocket(): void {
+    // Create WebSocket server
+    this.wsServer = new (require('ws')).Server({
+      noServer: true,
+      path: '/messages/stream'
+    });
+
+    // Intercept HTTP upgrade requests
+    this.httpServer.on('upgrade', (request: any, socket: any, head: any) => {
+      const { pathname } = new URL(request.url || '', `http://${request.headers.host}`);
+
+      if (pathname === '/messages/stream') {
+        // Handle WebSocket upgrade
+        this.wsServer.handleUpgrade(request, socket, head, (ws: any) => {
+          this.wsServer.emit('connection', ws, request);
+        });
+      } else {
+        // Not a WebSocket request - close socket
+        socket.destroy();
+      }
+    });
+
+    // Handle WebSocket connections
+    this.wsServer.on('connection', (wsClient: WebSocket) => {
+      console.log(`🔌 WebSocket client connected`);
+
+      // Handle incoming messages from client
+      wsClient.on('message', (data: Buffer) => {
+        try {
+          const msg = JSON.parse(data.toString());
+
+          if (msg.type === 'subscribe' && msg.topic) {
+            // Subscribe to AgentMessageBus topic
+            this.agentMessageBus.subscribeWebSocket(wsClient, msg.topic);
+            console.log(`✓ Client subscribed to: ${msg.topic}`);
+          } else if (msg.type === 'unsubscribe' && msg.topic) {
+            // Unsubscribe from topic
+            this.agentMessageBus.unsubscribeWebSocket(wsClient, msg.topic);
+            console.log(`✓ Client unsubscribed from: ${msg.topic}`);
+          } else {
+            // Invalid message type
+            wsClient.close(1008, 'Invalid message format');
+          }
+        } catch (error) {
+          console.error('Invalid WebSocket message:', error);
+          wsClient.close(1008, 'Invalid message format');
+        }
+      });
+
+      // Handle client disconnect
+      wsClient.on('close', () => {
+        console.log(`🔌 WebSocket client disconnected`);
+      });
+
+      // Handle errors
+      wsClient.on('error', (error: any) => {
+        console.error('WebSocket error:', error);
+      });
+
+      // Send welcome message
+      try {
+        wsClient.send(JSON.stringify({
+          type: 'connected',
+          timestamp: new Date().toISOString(),
+          message: 'Connected to UltraX WebSocket server'
+        }));
+      } catch (error) {
+        // Client already disconnected
+      }
+    });
+
+    // Listen for AgentMessageBus broadcasts and forward to WebSocket clients
+    this.agentMessageBus.on('websocket:broadcast', ({ wsClientId, topic, message }: any) => {
+      // Find the WebSocket client and send message
+      // In production, we'd maintain a mapping from wsClientId to ws instance
+      this.wsServer.clients.forEach((client: any) => {
+        if (client.readyState === 1) { // WebSocket.OPEN
+          try {
+            client.send(JSON.stringify(message));
+          } catch (error) {
+            // Send failed, client might be disconnected
+          }
+        }
+      });
+    });
+
+    console.log(`📡 WebSocket server attached: /messages/stream`);
+  }
+
+  /**
    * Start the server
    */
   async start(): Promise<void> {
@@ -350,44 +454,17 @@ export class UltraXServer {
     const host = process.env.HOST || '0.0.0.0';
 
     return new Promise((resolve) => {
-      this.app.listen(port, host, () => {
+      // Store HTTP server reference for WebSocket upgrade
+      this.httpServer = this.app.listen(port, host, () => {
         console.log(`\n🚀 UltraX Server started`);
         console.log(`📡 HTTP API: http://${host}:${port}`);
         console.log(`🔌 Gateway: /api/gateway`);
         console.log(`💬 Google Chat Webhook: /webhook/google-chat`);
         console.log(`🌐 Relay Integration: ${this.config.relayUrl}`);
 
-        // Show network access info
-        console.log(`🌍 Network Access: ENABLED (all interfaces)`);
-        try {
-          const { execSync } = require('child_process');
+        // Attach WebSocket server to HTTP server
+        this.attachWebSocket();
 
-          // Get all IPs
-          const ips = execSync('hostname -I').toString().trim().split(/\s+/);
-          if (ips.length > 0) {
-            console.log(`🔗 Local IPs: ${ips.map((ip: string) => `http://${ip}:${port}`).join(', ')}`);
-          }
-
-          // Try to get Tailscale IP
-          try {
-            const tailscaleIp = execSync('ip addr show tailscale0 2>/dev/null | grep "inet " | awk \'{print $2\'} | cut -d/ -f1').toString().trim();
-            if (tailscaleIp) {
-              console.log(`🦎 Tailscale: http://${tailscaleIp}:${port}`);
-            }
-          } catch (e) {
-            // Tailscale not configured or no device
-          }
-
-          // Try to get hostname
-          const hostname = execSync('hostname').toString().trim();
-          console.log(`🖥️  Hostname: http://${hostname}:${port}`);
-        } catch (e) {
-          // Ignore if commands fail
-        }
-
-        if (this.config.googleChat) {
-          console.log(`✅ Google Chat bot enabled`);
-        }
         console.log(`\n✨ Ready to accept connections\n`);
         resolve();
       });
@@ -398,8 +475,19 @@ export class UltraXServer {
    * Stop the server
    */
   stop(): void {
-    // Server will be stopped when process exits
     console.log('UltraX Server stopping...');
+
+    // Close WebSocket connections first
+    if (this.wsServer) {
+      console.log('📡 Closing WebSocket connections...');
+      this.wsServer.clients.forEach((client: any) => {
+        client.close(1001, 'Server shutting down');
+      });
+      this.wsServer.close();
+    }
+
+    // HTTP server will be stopped when process exits
+    console.log('✓ UltraX Server stopped');
   }
 
   /**

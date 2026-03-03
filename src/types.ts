@@ -236,3 +236,56 @@ export interface WorkflowResult {
   startedAt: Date;
   completedAt: Date;
 }
+
+/**
+ * WebSocket message types for real-time event streaming
+ */
+
+/**
+ * WebSocket message format
+ */
+export interface WebSocketMessage {
+  type: 'subscribe' | 'unsubscribe' | 'subscribed' | 'unsubscribed' | 'connected' | 'event' | 'error';
+  topic?: string;
+  sequenceNumber?: number;
+  payload?: unknown;
+  timestamp?: string;
+}
+
+/**
+ * WebSocket subscription info
+ */
+export interface WebSocketSubscription {
+  wsClientId: string;
+  topic: string;
+  subscribedAt: Date;
+  lastSequenceNumber: number;
+}
+
+/**
+ * Event types for WebSocket streaming
+ */
+export type UltraEventType =
+  | 'plan.created'
+  | 'task.queued'
+  | 'task.started'
+  | 'task.completed'
+  | 'task.failed'
+  | 'agent.spawned'
+  | 'phase.completed'
+  | 'heartbeat'
+  | 'session.started'
+  | 'session.stopped'
+  | 'cycle.complete'
+  | 'routine.executed';
+
+/**
+ * Ultra event for WebSocket streaming
+ */
+export interface UltraEvent {
+  type: UltraEventType;
+  sessionId?: string;
+  payload: unknown;
+  timestamp: Date;
+  sequenceNumber?: number;
+}
