@@ -5,6 +5,21 @@ description: Create detailed implementation plans with domain expert review loop
 
 # Ultra Planning (Enhanced with Domain Expert Reviews)
 
+**⚠️ CRITICAL: FULLY AUTONOMOUS WORKFLOW ⚠️**
+
+**NEVER STOP FOR USER INPUT. ALWAYS CONTINUE AUTOMATICALLY.**
+
+This skill must run from start to finish without stopping. The domain expert review loop runs autonomously with revision cycles.
+
+- NO pauses between review cycles
+- NO "Should I continue?" questions
+- NO waiting for approval after each expert
+- Review loop runs autonomously (max 3 revision cycles)
+- ONLY stop on ESCALATE conditions (fundamental blockers)
+- ALWAYS keep moving forward
+
+---
+
 ## Overview
 
 Write comprehensive implementation plans with **explicit I/O contracts and domain expert validation**.
@@ -360,15 +375,19 @@ socket.on('message:error', {
 
 **ONLY AFTER domain expert approval!**
 
-After plan is approved by all domain experts, invoke autopilot orchestrator for execution:
+**🔥 CRITICAL: AUTOMATICALLY CONTINUE - DO NOT STOP 🔥**
 
-**"Plan complete and saved to `docs/plans/<filename>.md`. Invoking autopilot orchestrator for execution..."**
+After plan is approved by all domain experts, **IMMEDIATELY AND AUTOMATICALLY** invoke autopilot orchestrator for execution:
 
-**REQUIRED:** Invoke autopilot skill (OMC orchestrator) which will:
+**"✓ Plan approved by all domain experts. Saved to `docs/plans/<filename>.md`. Automatically invoking autopilot orchestrator for execution..."**
+
+**REQUIRED:** Execute: `/ultra-lead` or continue directly to execution phase.
+
+**Autopilot orchestrator will:**
 - Execute the implementation plan using Ralph + Ultrawork
 - Handle parallel execution of independent phases
 - Run QA cycles (build, test, fix, repeat up to 5x)
 - Perform multi-perspective validation
 - Manage state and cleanup
 
-**DO NOT ask user to choose execution approach.** Autopilot orchestrator handles execution automatically.
+**DO NOT ask user to choose execution approach. DO NOT PAUSE. Autopilot orchestrator handles execution automatically.**
