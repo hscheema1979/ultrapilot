@@ -39,24 +39,36 @@ Phase N complete → Status update → Move to Phase N+1 → Continue...
 
 ## Overview
 
-**UltraPilot** is the complete strategic orchestration system that takes complex development tasks from initial request through verified completion.
+**UltraPilot** is a **complete, self-contained orchestration system** that takes complex development tasks from initial request through verified completion in a single skill invocation.
 
-**TWO-TIER ARCHITECTURE:**
+**UltraPilot Architecture:**
 
 ```
-UltraPilot (Strategic Orchestrator):
+UltraPilot (Single Skill, Complete Workflow):
   ├─ Phase 0: Requirements + Architecture → spec.md
   ├─ Phase 1: Planning + Multi-Perspective Review → plan-final.md
-  ├─ Phase 2-7: Autonomous execution
+  ├─ Phase 2: Spawns parallel agents via Task tool for execution
+  ├─ Phase 3: QA cycles (ultraqa skill)
+  ├─ Phase 4: Multi-perspective validation (3 reviewers)
+  ├─ Phase 5: Evidence verification
+  ├─ Phase 6: Completion
+  ├─ Phase 7: Documentation & handoff
   └─ Output: Production-ready code with verification
 
-Ultra-Lead (Alternative - Firm Leader):
-  ├─ Phase 0-1: Strategic input → plan-final.md
-  ├─ Phase 2-7: Hands off to Ultra-Autoloop
-  └─ Output: Autoloop-driven continuous execution
+**Key:** UltraPilot orchestrates the ENTIRE workflow itself using Task tool calls
 ```
 
-**Philosophy**: "Strategic planning (UltraPilot) + Autonomous execution = Production-ready code"
+**How UltraPilot Differs from Ultra-Lead:**
+
+| Aspect | UltraPilot | Ultra-Lead |
+|--------|-----------|-----------|
+| **Scope** | Complete workflow (Phases 0-7) in one skill | Planning only (Phases 0-1), then queues work externally |
+| **Execution** | Spawns agents directly via Task tool | Creates GitHub Tasks/Projects/Workflows for external execution |
+| **Autoloop** | Does NOT use Ultra-Autoloop | Uses Ultra-Autoloop daemon for execution |
+| **When to use** | One-shot development tasks | Long-running projects with external tracking |
+| **Completion** | Returns when fully verified | Hands off to external systems |
+
+**Philosophy**: "Single-skill autonomous orchestration from requirements to verified completion"
 
 ---
 
@@ -65,6 +77,8 @@ Ultra-Lead (Alternative - Firm Leader):
 UltraPilot executes ALL phases autonomously without user intervention:
 
 ### Phase 0: Requirements & Architecture Expansion
+
+**⚠️ YOU ARE NOW IN PHASE 0 - START OF WORKFLOW ⚠️**
 
 **Spawn two agents in parallel:**
 
@@ -80,9 +94,13 @@ Wait for BOTH to complete, then merge outputs into `.ultra/spec.md`
 
 **Output**: `.ultra/spec.md` - Requirements and architecture document
 
+**→ Continue to Phase 1: Planning with Multi-Perspective Review**
+
 ---
 
 ### Phase 1: Planning with Multi-Perspective Review
+
+**⚠️ YOU ARE NOW IN PHASE 1 - PLANNING & REVIEW ⚠️**
 
 #### Step 1.1: Spawn ultra:planner (Opus)
 
@@ -148,69 +166,161 @@ If NEEDS_REVISION:
 
 **Output**: `.ultra/plan-final.md` - Validated implementation plan
 
+**→ Continue to Phase 2: Queue-Based Execution**
+
 ---
 
-### Phase 2: Queue-Based Execution
+### Phase 2: Queue-Based Execution with Hierarchical Parallelism
 
-**Decompose plan into tasks:**
-- Extract all implementation tasks from plan-final.md
-- Determine agent types per Operations Playbook routing:
-  ```
-  feature|implement     → ultra:executor
-  bug|fix              → ultra:debugger
-  security            → ultra:security-reviewer
-  performance|quality → ultra:quality-reviewer
-  test                → ultra:test-engineer
-  ```
+**⚠️ YOU ARE NOW IN PHASE 2 - EXECUTION ⚠️**
 
-**Queue processing:**
-- Add tasks to `.ultra/queues/intake.json`
-- Signal Ultra-Autoloop for processing
+**⚠️ CRITICAL: SPAWN MULTIPLE ULTRA-TEAMS IN PARALLEL FOR COMPLEX TASKS ⚠️**
 
-**Parallel execution:**
+**DO NOT** just generate a task list and stop.
+**DO NOT** write to queue files and assume something else will process them.
+**DO NOT** reference Ultra-Autoloop (that's for ultra-lead skill).
+**YOU MUST ACTUALLY SPAWN ULTRA-TEAMS FOR COMPLEX TASKS OR AGENTS FOR SIMPLE TASKS.**
+
+---
+
+**Step 1: Read and classify tasks from plan**
+
+Read `.ultra/plan-final.md` and extract all implementation tasks.
+
+For each task, classify complexity:
+
+**Simple tasks** (single agent sufficient):
+- Single file changes
+- Straightforward implementations
+- < 50 lines of code
+- No complex integration points
+- Examples: Add type export, fix typo, simple function
+
+**Complex tasks** (require ultra-team):
+- Multi-file changes
+- Complex business logic
+- > 50 lines of code
+- Multiple integration points
+- Requires sub-task coordination
+- Examples: Authentication module, API endpoints, database schema
+
+---
+
+**Step 2: Execute with hierarchical parallelism**
+
+**CRITICAL: This is NOT an example. You MUST execute these Skill/Task calls NOW.**
+
+**For simple tasks:**
+Spawn individual agents directly:
+
+Task("Task: {task_name}", ultra:executor, model="sonnet",
+  prompt="Implement this task from .ultra/plan-final.md: {task_description}
+
+Follow TDD approach:
+1. Write failing test
+2. Implement minimal code to pass
+3. Run test to verify
+4. Commit changes
+
+Work autonomously.")
+
+**For complex tasks:**
+Spawn separate ultra-team for each complex task:
+
+Skill("ultra-team",
+  args="N=3 \"Implement complex task: {task_name}
+
+From .ultra/plan-final.md:
+{full_task_description_with_IO_contracts_and_acceptance_criteria}
+
+This task requires:
+- Multi-file coordination
+- Sub-task decomposition
+- Parallel agent orchestration
+
+Work autonomously from start to finish. Spawn 3 specialists in parallel, coordinate their work, and synthesize results.\"")
+
+**⚠️ EXECUTE ALL SKILL/TASK CALLS IN THE SAME RESPONSE FOR MAXIMUM PARALLELISM ⚠️**
+
+---
+
+**Step 3: Monitor all ultra-teams and agents**
+
+Wait for ALL spawned ultra-teams and individual agents to complete.
+
+**Monitoring strategy:**
+- Track each ultra-team separately
+- Track each individual agent separately
+- Count total tasks vs completed tasks
+- Handle failures by re-spawning specific ultra-teams or agents
+
+**DO NOT proceed to Phase 3 until ALL tasks complete successfully.**
+
+---
+
+**Status update example:**
 ```
-/ultra-team N={task_count} "Execute tasks from .ultra/plan-final.md"
+✓ Phase 2: Executing with hierarchical parallelism
+  ├─ Task 1: Add type export (simple) → ultra:executor spawned
+  ├─ Task 2: Authentication module (complex) → ultra-team #1 spawned
+  │   └─ Ultra-team coordinating 3 sub-agents
+  ├─ Task 3: Task repository (complex) → ultra-team #2 spawned
+  │   └─ Ultra-team coordinating 3 sub-agents
+  ├─ Task 4: Fix typo (simple) → ultra:executor spawned
+  ├─ Task 5: API endpoints (complex) → ultra-team #3 spawned
+  │   └─ Ultra-team coordinating 3 sub-agents
+  └─ Total: 5 tasks (2 simple, 3 complex = 11 total agents)
+
+→ Awaiting completion of all ultra-teams and agents...
 ```
 
-Each agent gets:
-- File ownership boundaries (no conflicts)
-- I/O contracts to implement
-- Clear acceptance criteria
+**→ Continue to Phase 3: QA Cycles**
 
 ---
 
 ### Phase 3: QA Cycles (ultraqa)
 
-**Invoke ultraqa skill:**
+**⚠️ YOU ARE NOW IN PHASE 3 - DO NOT STOP ⚠️**
+
+**Step 1: Invoke ultraqa skill using Skill tool**
 
 ```
-/ultraqa "Verify .ultra/plan-final.md implementation"
+Skill("ultraqa",
+  args="Verify .ultra/plan-final.md implementation with build, lint, and test cycles")
 ```
 
-**QA Workflow (max 5 cycles):**
+**Step 2: Monitor ultraqa execution**
 
-Each cycle:
+Ultraqa will run up to 5 QA cycles:
 1. **Build**: `npm run build` (or equivalent)
 2. **Lint**: `npm run lint` (if configured)
 3. **Test**: `npm test`
 
+**Step 3: Check ultraqa result**
+
 **Decision Logic:**
 ```
 if (build && lint && test) all pass:
-    → Proceed to Phase 4
+    → ✓ Phase 3 complete - Continue to Phase 4
 elif cycle < 5:
-    → Fix failures → Repeat cycle
+    → ultraqa fixes failures → Repeats cycle
 elif same_error_persists_3_cycles:
     → ESCALATE to user (fundamental issue)
 else:
-    → Report status → User decides
+    → ESCALATE to user (max cycles reached)
 ```
 
 **⚠️ MAX 5 CYCLES FOR QA** - If tests still failing after 5 cycles, escalate.
 
+**⚠️ DO NOT STOP HERE** - Wait for ultraqa to complete, then immediately continue to Phase 4.
+
+**→ Continue to Phase 4: Multi-Perspective Validation**
+
 ---
 
 ### Phase 4: Multi-Perspective Validation
+
+**⚠️ YOU ARE NOW IN PHASE 4 - VALIDATION ⚠️**
 
 **Spawn 3 reviewers in parallel:**
 
@@ -246,9 +356,13 @@ else if any == NEEDS_REVISION:
 
 If validation fails after 3 rounds → ESCALATE to user.
 
+**→ Continue to Phase 5: Evidence Verification**
+
 ---
 
 ### Phase 5: Evidence Verification
+
+**⚠️ YOU ARE NOW IN PHASE 5 - VERIFICATION ⚠️**
 
 **Invoke ultra:verifier:**
 
@@ -297,50 +411,116 @@ else:
     → ESCALATE to user (verification failed)
 ```
 
+**→ Continue to Phase 6: Completion**
+
 ---
 
 ### Phase 6: Completion
 
-**When verification passes:**
+**⚠️ YOU ARE NOW IN PHASE 6 - DO NOT STOP ⚠️**
 
-1. **Move task to completed queue:**
-   - From `.ultra/queues/in-progress.json`
-   - To `.ultra/queues/completed.json`
+**⚠️ CRITICAL: COMPLETE THESE STEPS NOW, DO NOT SKIP ⚠️**
 
-2. **Generate completion summary:**
-   ```
-   ✓ Task completed: {task_id}
-   ├─ Files created: {count}
-   ├─ Files modified: {count}
-   ├─ Tests passing: {count}
-   ├─ Build: SUCCESS
-   ├─ Validation: All 3 reviewers approved
-   └─ Verification: Evidence-backed confirmation
-   ```
+**Step 1: Update completion queue**
 
-3. **Clean up state files:**
-   - Remove temporary state
-   - Archive plan documents
+Move task to completed queue:
+```bash
+# Move from in-progress to completed
+mv .ultra/queues/in-progress.json .ultra/queues/completed.json
+```
 
-4. **Report to user:**
-   - Task completed successfully
-   - All acceptance criteria met
-   - Evidence-backed verification
+**Step 2: Generate completion summary**
+
+Create completion summary with:
+```
+✓ Task completed: {task_description}
+├─ Files created: {count}
+├─ Files modified: {count}
+├─ Tests passing: {count}/{count}
+├─ Build: SUCCESS (exit code 0)
+├─ Validation: All 3 reviewers approved
+└─ Verification: Evidence-backed confirmation
+```
+
+**Step 3: Clean up state files**
+
+Remove all temporary state files:
+```bash
+rm -f .ultra/state/autopilot-state.json
+rm -f .ultra/state/ralph-state.json
+rm -f .ultra/state/ultraqa-state.json
+rm -f .ultra/state/validation-state.json
+rm -f .ultra/state/verification-state.json
+```
+
+**Step 4: Report to user**
+
+Output completion message:
+```
+✓ ULTRAPILOT COMPLETE
+
+Task: {task_description}
+
+Results:
+- {files_created} files created
+- {files_modified} files modified
+- {test_count} tests passing
+- Build: SUCCESS
+- All reviewers: APPROVED
+- Verification: PASSED with evidence
+
+The feature is production-ready.
+```
+
+**⚠️ DO NOT STOP HERE** - Immediately continue to Phase 7.
 
 ---
 
 ### Phase 7: Documentation & Handoff
 
-**Generate final documentation:**
-- README updates
-- API documentation
-- Architecture diagrams
-- Deployment guides
+**⚠️ YOU ARE NOW IN PHASE 7 - FINAL PHASE ⚠️**
 
-**Verify handoff completeness:**
+**⚠️ CRITICAL: COMPLETE THESE STEPS TO FINISH THE WORKFLOW ⚠️**
+
+**Step 1: Generate final documentation**
+
+Create/update documentation files:
+- **README.md** - Update with feature overview, usage, installation
+- **API documentation** - Document endpoints/interfaces if applicable
+- **Architecture diagrams** - Create/update system architecture docs
+- **Deployment guides** - Add deployment instructions
+
+**Step 2: Verify handoff completeness**
+
+Check that all deliverables are present:
+- ✓ Source code complete
+- ✓ Tests passing
+- ✓ Documentation updated
+- ✓ Build successful
+- ✓ No pending issues
+
+**Step 3: Final status output**
+
+Output final completion message:
+```
+✓ PHASE 7 COMPLETE - FULL WORKFLOW DONE
+
+Documentation:
+- README.md updated
+- API docs generated
+- Deployment guide created
+
+Handoff:
 - All deliverables present
-- Documentation complete
 - Knowledge transfer ready
+- Production-ready feature
+
+[ULTRAPILOT WORKFLOW COMPLETE]
+```
+
+**⚠️ WORKFLOW COMPLETE - STOP HERE ⚠️**
+
+After Phase 7 completes, the workflow is finished. Do not continue.
 
 ---
 
@@ -498,10 +678,14 @@ UltraPilot maintains state in `.ultra/state/`:
 
 | Aspect | UltraPilot | Ultra-Lead |
 |--------|-----------|-----------|
-| **Phases** | 0-7 (complete) | 0-1 input, then autoloop 2-7 |
-| **Execution** | Direct via ultra-team | Via Ultra-Autoloop daemon |
-| **Autonomy** | Full autonomous workflow | Plan-driven, autoloop executes |
-| **Use case** | Complete development from scratch | Operational execution of validated plan |
+| **Workflow** | Complete (Phases 0-7) in one skill | Planning (0-1) only, then hands off |
+| **Execution** | Spawns agents directly via Task tool | Queues work in GitHub Tasks/Projects/Workflows |
+| **Autoloop** | Does NOT use | Uses Ultra-Autoloop daemon |
+| **When to use** | One-shot development, need it done now | Long-running projects, external tracking needed |
+| **Returns** | When fully complete and verified | After planning, hands off to external systems |
+
+**Use UltraPilot when:** You want a complete feature built and verified in one session
+**Use Ultra-Lead when:** You want to plan work and queue it for execution by external systems |
 
 ---
 
