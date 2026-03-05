@@ -18,7 +18,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { GitHubService } from './github-service';
-import { GitHubAppAuthManager } from './github-app-auth';
+import { GitHubAuthManager } from './github-auth';
 import { MigrationManifest } from './migration-manifest';
 import { GitHubStateAdapter, StateObject } from './github-state-adapter';
 import { GitHubTaskQueueAdapter } from './github-task-queue-adapter';
@@ -137,7 +137,7 @@ export class MigrationScript {
 
   constructor(private options: MigrationOptions) {
     const stateDir = options.stateDir || path.join(process.cwd(), '.ultra', 'state');
-    const authManager = GitHubAppAuthManager.fromEnv(`${options.owner}/${options.repo}`);
+    const authManager = GitHubAuthManager.fromEnv(`${options.owner}/${options.repo}`);
 
     const config = {
       owner: options.owner,

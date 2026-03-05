@@ -13,6 +13,7 @@
  */
 
 import { createMigrationScript } from './migration-script';
+import { GitHubAuthManager } from './github-auth';
 import * as readline from 'readline';
 
 /**
@@ -52,8 +53,9 @@ Options:
   --help, -h   Display this help message
 
 Environment Variables:
-  GITHUB_APP_ID              GitHub App ID (required)
-  GITHUB_APP_PRIVATE_KEY     GitHub App private key (required)
+  GITHUB_TOKEN               GitHub Personal Access Token (for development)
+  GITHUB_APP_ID              GitHub App ID (for production)
+  GITHUB_APP_PRIVATE_KEY     GitHub App private key (for production)
   GITHUB_APP_INSTALLATION_ID GitHub App installation ID (optional)
 
 Examples:
@@ -98,23 +100,25 @@ async function main(): Promise<void> {
   }
 
   // Check required environment variables
-  const appId = process.env.GITHUB_APP_ID;
-  const privateKey = process.env.GITHUB_APP_PRIVATE_KEY;
-  const installationId = process.env.GITHUB_APP_INSTALLATION_ID;
+  const hasToken = process.env.GITHUB_TOKEN;
+  const hasApp = process.env.GITHUB_APP_ID && process.env.GITHUB_APP_PRIVATE_KEY;
 
-  if (!appId || !privateKey) {
-    console.error('❌ Error: Missing required environment variables');
+  if (!hasToken && !hasApp) {
+    console.error('❌ Error: Missing GitHub credentials');
     console.error('');
-    console.error('Required:');
-    console.error('  GITHUB_APP_ID              GitHub App ID');
-    console.error('  GITHUB_APP_PRIVATE_KEY     GitHub App private key');
+    console.error('Choose one:');
+    console.error('  1. GITHUB_TOKEN (for development)');
+    console.error('     Get token at: https://github.com/settings/tokens');
+    console.error('     Set: export GITHUB_TOKEN=your_token_here');
     console.error('');
-    console.error('Optional:');
-    console.error('  GITHUB_APP_INSTALLATION_ID GitHub App installation ID');
-    console.error('');
-    console.error('Setup: See /docs/github-integration.md for configuration instructions');
+    console.error('  2. GITHUB_APP_ID + GITHUB_APP_PRIVATE_KEY (for production)');
+    console.error('     See: .github/GITHUB_APP_SETUP.md');
     process.exit(1);
   }
+
+  // Auto-detect auth type
+  const auth = GitHubAuthManager.fromEnv();
+  console.log(`📝 Using ${auth.isPATAuth() ? 'Personal Access Token' : 'GitHub App'} authentication`);
 
   // Get repository info from environment or use defaults
   // Format: owner/repo or use default

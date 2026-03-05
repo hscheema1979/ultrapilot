@@ -91,6 +91,13 @@ export class GitHubAuthManager {
   }
 
   /**
+   * Get installation token (alias for compatibility with GitHubService)
+   */
+  async getInstallationToken(_installationId?: number): Promise<string> {
+    return this.manager.getToken();
+  }
+
+  /**
    * Get authenticated Octokit instance
    */
   async getOctokit(): Promise<Octokit> {
