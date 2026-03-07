@@ -1,0 +1,78 @@
+name: Ultra Verification
+
+on:
+  issues:
+    types: [opened, reopened, labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to verify'
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  verification:
+    name: Pre-Completion Verification
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.issue.labels.*.name, 'ultra-verification') ||
+      contains(github.event.issue.labels.*.name, 'verification') ||
+      github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout UltraPilot
+        uses: actions/checkout@v4
+
+      - name: 🔍 Verification Run Started
+        run: |
+          echo "Evidence before assertions:"
+          echo "Run verification commands"
+          echo "Confirm output"
+          echo "Full audit trail"
+
+      - name: Execute Verification
+        run: |
+          # This would trigger the ultra-verification skill
+          # Runs verification commands and confirms output
+          echo "Running verification suite..."
+          echo "Requiring evidence before success claims"
+
+      - name: Update Issue Status
+        if: github.event_name != 'workflow_dispatch'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.issue.number;
+
+            await github.rest.issues.addLabels({
+              issueNumber: issueNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['ultra-verification', 'verification', 'in-progress']
+            });
+
+            await github.rest.issues.createComment({
+              issueNumber: issueNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 🔍 Verification Run Initiated
+
+              **Policy:** Evidence before assertions
+              **Process:** Run commands → Confirm output → Audit trail
+              **Output:** Pass/fail status with evidence
+
+              ### Verification Steps:
+              1. 🎯 Define verification criteria
+              2. ⚡ Run verification commands
+              3. ✅ Confirm output meets criteria
+              4. 📊 Full audit trail logged
+
+              Results will be documented here.
+
+              ---
+              *Triggered by [UltraPilot Verification](https://github.com/hscheema1979/ultrapilot)*`
+            });

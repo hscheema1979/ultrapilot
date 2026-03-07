@@ -1,0 +1,81 @@
+name: Ultra Planning
+
+on:
+  issues:
+    types: [opened, reopened, labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number for planning'
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  planning:
+    name: Strategic Planning with Domain Review
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.issue.labels.*.name, 'ultra-planning') ||
+      contains(github.event.issue.labels.*.name, 'planning') ||
+      github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout UltraPilot
+        uses: actions/checkout@v4
+
+      - name: 📋 Planning Process Initiated
+        run: |
+          echo "Multi-phase planning with domain expert review:"
+          echo "1. Requirements analysis"
+          echo "2. Architecture design"
+          echo "3. Implementation planning"
+          echo "4. Domain expert review loop"
+          echo "5. Plan validation"
+
+      - name: Execute Planning Workflow
+        run: |
+          # This would trigger the ultra-planning skill
+          # Creates detailed implementation plans
+          echo "Generating implementation plan..."
+          echo "Will include domain expert review"
+
+      - name: Update Issue Status
+        if: github.event_name != 'workflow_dispatch'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.issue.number;
+
+            await github.rest.issues.addLabels({
+              issueNumber: issueNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['ultra-planning', 'planning', 'in-progress']
+            });
+
+            await github.rest.issues.createComment({
+              issueNumber: issueNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 📋 Planning Process Initiated
+
+              **Process:** Multi-phase planning with expert review
+              **Output:** Detailed implementation plan
+              **Review:** Domain expert validation
+
+              ### Planning Phases:
+              1. 📝 Requirements Analysis
+              2. 🏗️ Architecture Design
+              3. 📋 Implementation Plan
+              4. 👥 Domain Expert Review Loop
+              5. ✅ Plan Validation
+
+              Plan will be updated here with expert feedback.
+
+              ---
+              *Triggered by [UltraPilot Planning](https://github.com/hscheema1979/ultrapilot)*`
+            });

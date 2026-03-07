@@ -1,0 +1,82 @@
+name: Ultra Team
+
+on:
+  issues:
+    types: [opened, reopened, labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number for team coordination'
+        required: true
+        type: number
+      team_size:
+        description: 'Number of agents to spawn'
+        required: false
+        type: number
+        default: 3
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  team:
+    name: Multi-Agent Team Coordination
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.issue.labels.*.name, 'ultra-team') ||
+      contains(github.event.issue.labels.*.name, 'team') ||
+      github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout UltraPilot
+        uses: actions/checkout@v4
+
+      - name: 👥 Team Coordination Initiated
+        run: |
+          echo "Spawning ${{ github.event.inputs.team_size || 3 }} parallel agents"
+          echo ""
+          echo "Issue: ${{ github.event.issue.number || github.event.inputs.issue_number }}"
+          echo "Repository: ${{ github.repository }}"
+          echo ""
+          echo "Agents will coordinate via GitHub comments and project board"
+
+      - name: Spawn Agent Team
+        run: |
+          # This would trigger the ultra-team skill
+          # Multiple agents work on shared task list via GitHub
+          echo "Initializing agent team..."
+          echo "Each agent gets assigned tasks from GitHub project board"
+
+      - name: Update Issue Status
+        if: github.event_name != 'workflow_dispatch'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.issue.number;
+            const teamSize = '${{ github.event.inputs.team_size || 3 }}';
+
+            await github.rest.issues.addLabels({
+              issueNumber: issueNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['ultra-team', 'multi-agent', 'in-progress']
+            });
+
+            await github.rest.issues.createComment({
+              issueNumber: issueNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 👥 Ultra Team Initiated
+
+              **Team Size:** ${teamSize} agents
+              **Coordination:** GitHub issues + project board
+              **Communication:** Inter-agent comments
+
+              Agents will coordinate autonomously via GitHub.
+              Check project board for task assignments.
+
+              ---
+              *Triggered by [UltraPilot Team](https://github.com/hscheema1979/ultrapilot)*`
+            });

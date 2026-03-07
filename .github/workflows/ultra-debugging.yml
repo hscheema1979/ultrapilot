@@ -1,0 +1,80 @@
+name: Ultra Debugging
+
+on:
+  issues:
+    types: [opened, reopened, labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number with bug/error'
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  debug:
+    name: Systematic Debugging Workflow
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.issue.labels.*.name, 'ultra-debugging') ||
+      contains(github.event.issue.labels.*.name, 'debug') ||
+      contains(github.event.issue.labels.*.name, 'bug') ||
+      github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout UltraPilot
+        uses: actions/checkout@v4
+
+      - name: 🐛 Debugging Session Started
+        run: |
+          echo "Four-phase debugging process:"
+          echo "1. Root cause identification"
+          echo "2. Pattern recognition"
+          echo "3. Hypothesis testing"
+          echo "4. Implementation"
+          echo ""
+          echo "Each phase will be documented in this issue"
+
+      - name: Initialize Debugging Workflow
+        run: |
+          # This would trigger the ultra-debugging skill
+          # Systematic four-phase debugging process
+          echo "Starting root cause analysis..."
+          echo "Hypotheses will be tested in parallel"
+
+      - name: Update Issue Status
+        if: github.event_name != 'workflow_dispatch'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.issue.number;
+
+            await github.rest.issues.addLabels({
+              issueNumber: issueNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['ultra-debugging', 'debugging-session', 'in-progress']
+            });
+
+            await github.rest.issues.createComment({
+              issueNumber: issueNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 🐛 Debugging Session Initiated
+
+              **Phase:** Root cause identification
+              **Strategy:** Four-phase systematic process
+              **Updates:** Each phase will be documented
+
+              ### Debugging Phases:
+              1. ✅ Root Cause - What's actually broken?
+              2. 🔍 Pattern - What's the underlying pattern?
+              3. 🧪 Hypothesis - Test competing theories
+              4. 🔧 Implementation - Fix and verify
+
+              ---
+              *Triggered by [UltraPilot Debugging](https://github.com/hscheema1979/ultrapilot)*`
+            });

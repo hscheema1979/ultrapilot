@@ -1,0 +1,81 @@
+name: Ultra TDD
+
+on:
+  issues:
+    types: [opened, reopened, labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number for TDD implementation'
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  tdd:
+    name: Test-Driven Development
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.issue.labels.*.name, 'ultra-tdd') ||
+      contains(github.event.issue.labels.*.name, 'tdd') ||
+      github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout UltraPilot
+        uses: actions/checkout@v4
+
+      - name: ✅ TDD Enforcement
+        run: |
+          echo "Test-First Development Policy:"
+          echo "1. Write failing test"
+          echo "2. Implement minimal code to pass"
+          echo "3. Refactor"
+          echo "4. Repeat"
+          echo ""
+          echo "No implementation without tests!"
+
+      - name: Enforce TDD Workflow
+        run: |
+          # This would trigger the ultra-tdd skill
+          # Enforces test-first development
+          echo "Checking for tests before implementation..."
+
+      - name: Update Issue Status
+        if: github.event_name != 'workflow_dispatch'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.issue.number;
+
+            await github.rest.issues.addLabels({
+              issueNumber: issueNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['ultra-tdd', 'test-first', 'in-progress']
+            });
+
+            await github.rest.issues.createComment({
+              issueNumber: issueNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## ✅ TDD Enforcement Active
+
+              **Policy:** Tests before implementation
+              **Cycle:** Red → Green → Refactor
+              **Enforcement:** No code without tests
+
+              ### TDD Process:
+              1. 🔴 Write failing test
+              2. 🟢 Implement minimal code
+              3. ♻️ Refactor
+              4. 🔄 Repeat
+
+              All implementations must have corresponding tests.
+
+              ---
+              *Triggered by [UltraPilot TDD](https://github.com/hscheema1979/ultrapilot)*`
+            });

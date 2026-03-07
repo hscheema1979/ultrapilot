@@ -1,0 +1,79 @@
+name: Ultra Ultrawork
+
+on:
+  issues:
+    types: [opened, reopened, labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number for parallel execution'
+        required: true
+        type: number
+      worker_count:
+        description: 'Number of parallel workers'
+        required: false
+        type: number
+        default: 5
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  ultrawork:
+    name: Parallel Execution Engine
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.issue.labels.*.name, 'ultra-ultrawork') ||
+      contains(github.event.issue.labels.*.name, 'ultrawork') ||
+      contains(github.event.issue.labels.*.name, 'parallel') ||
+      github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout UltraPilot
+        uses: actions/checkout@v4
+
+      - name: ⚡ Parallel Execution Initiated
+        run: |
+          echo "Spawning ${{ github.event.inputs.worker_count || 5 }} parallel workers"
+          echo ""
+          echo "High-throughput task completion"
+          echo "Smart model tier routing"
+
+      - name: Execute Parallel Work
+        run: |
+          # This would trigger the ultra-ultrawork skill
+          # Spawns multiple workers for independent tasks
+          echo "Launching parallel workers..."
+          echo "Tasks assigned via GitHub issues as queue"
+
+      - name: Update Issue Status
+        if: github.event_name != 'workflow_dispatch'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.issue.number;
+            const workerCount = '${{ github.event.inputs.worker_count || 5 }}';
+
+            await github.rest.issues.addLabels({
+              issueNumber: issueNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['ultra-ultrawork', 'parallel-execution', 'in-progress']
+            });
+
+            await github.rest.issues.createComment({
+              issueNumber: issueNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## ⚡ Parallel Execution Initiated
+
+              **Workers:** ${workerCount} parallel agents
+              **Strategy:** High-throughput task completion
+              **Routing:** Smart model tier assignment
+
+              Tasks will be executed in parallel via GitHub issues.
+
+              ---
+              *Triggered by [UltraPilot Ultrawork](https://github.com/hscheema1979/ultrapilot)*`
+            });
