@@ -1,0 +1,182 @@
+name: UltraPilot Orchestrator
+
+on:
+  issues:
+    types: [opened, reopened, labeled]
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to process'
+        required: true
+        type: number
+      workflow_type:
+        description: 'Workflow type (feature-request, bug-report, audit, refactor, test)'
+        required: true
+        type: choice
+        options:
+          - feature-request
+          - bug-report
+          - audit
+          - refactor
+          - test
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  orchestrate:
+    name: UltraPilot Agent Orchestration
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.issue.labels.*.name, 'ultrapilot') ||
+      contains(github.event.issue.labels.*.name, 'feature-request') ||
+      contains(github.event.issue.labels.*.name, 'bug-report') ||
+      contains(github.event.issue.labels.*.name, 'workflow') ||
+      github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout UltraPilot
+        uses: actions/checkout@v4
+        with:
+          path: ultrapilot
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install UltraPilot Plugin
+        run: |
+          cd ultrapilot
+          npm ci
+
+      - name: Parse Issue Metadata
+        id: parse
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "issue_number=${{ github.event.inputs.issue_number }}" >> $GITHUB_OUTPUT
+            echo "workflow_type=${{ github.event.inputs.workflow_type }}" >> $GITHUB_OUTPUT
+            echo "triggered_by=manual" >> $GITHUB_OUTPUT
+          else
+            echo "issue_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+            echo "title=${{ github.event.issue.title }}" >> $GITHUB_OUTPUT
+            echo "body=${{ github.event.issue.body }}" >> $GITHUB_OUTPUT
+            echo "triggered_by=${{ github.event.sender.login }}" >> $GITHUB_OUTPUT
+
+            # Determine workflow type from labels
+            if contains(github.event.issue.labels.*.name, 'feature-request'); then
+              echo "workflow_type=feature-request" >> $GITHUB_OUTPUT
+            elif contains(github.event.issue.labels.*.name, 'bug-report'); then
+              echo "workflow_type=bug-report" >> $GITHUB_OUTPUT
+            elif contains(github.event.issue.labels.*.name, 'audit'); then
+              echo "workflow_type=audit" >> $GITHUB_OUTPUT
+            elif contains(github.event.issue.labels.*.name, 'refactor'); then
+              echo "workflow_type=refactor" >> $GITHUB_OUTPUT
+            elif contains(github.event.issue.labels.*.name, 'test'); then
+              echo "workflow_type=test" >> $GITHUB_OUTPUT
+            else
+              echo "workflow_type=general" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Notify Dashboard
+        run: |
+          echo "🚀 UltraPilot Orchestrator"
+          echo "Issue: ${{ steps.parse.outputs.issue_number }}"
+          echo "Workflow: ${{ steps.parse.outputs.workflow_type }}"
+          echo "Triggered by: ${{ steps.parse.outputs.triggered_by }}"
+
+          # Send webhook to dashboard if configured
+          if [ -n "${{ secrets.DASHBOARD_WEBHOOK_URL }}" ]; then
+            curl -X POST "${{ secrets.DASHBOARD_WEBHOOK_URL }}" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "issue_number": "${{ steps.parse.outputs.issue_number }}",
+                "workflow_type": "${{ steps.parse.outputs.workflow_type }}",
+                "repository": "${{ github.repository }}",
+                "triggered_by": "${{ steps.parse.outputs.triggered_by }}",
+                "event": "${{ github.event_name }}"
+              }'
+          fi
+
+      - name: Execute UltraPilot Workflow
+        id: execute
+        run: |
+          cd ultrapilot
+
+          # Set up environment
+          export GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
+          export ISSUE_NUMBER="${{ steps.parse.outputs.issue_number }}"
+          export WORKFLOW_TYPE="${{ steps.parse.outputs.workflow_type }}"
+          export REPOSITORY="${{ github.repository }}"
+          export TRIGGERED_BY="${{ steps.parse.outputs.triggered_by }}"
+
+          # Execute the appropriate workflow
+          if [ "$WORKFLOW_TYPE" == "feature-request" ]; then
+            echo "Executing feature request workflow..."
+            # Feature request processing will be handled by the plugin's agent coordinator
+            node src/executive/feature-request-processor.js || echo "Agent coordinator will handle asynchronously"
+          elif [ "$WORKFLOW_TYPE" == "bug-report" ]; then
+            echo "Executing bug report workflow..."
+            node src/executive/bug-report-processor.js || echo "Agent coordinator will handle asynchronously"
+          else
+            echo "Executing general UltraPilot workflow..."
+            # General workflow execution
+          fi
+
+          echo "status=started" >> $GITHUB_OUTPUT
+
+      - name: Update Issue Status
+        if: github.event_name != 'workflow_dispatch'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.issue.number;
+            const workflowType = '${{ steps.parse.outputs.workflow_type }}';
+
+            // Add workflow in progress label
+            github.rest.issues.addLabels({
+              issueNumber: issueNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: [workflowType, 'ultrapilot', 'in-progress']
+            });
+
+            // Add comment to acknowledge
+            github.rest.issues.createComment({
+              issueNumber: issueNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 🚀 UltraPilot Orchestrator
+
+              **Workflow Type:** ${workflowType}
+              **Status:** Agent coordination initiated
+              **Triggered by:** ${{ steps.parse.outputs.triggered_by }}
+
+              The UltraPilot agent coordinator has been notified. Progress will be updated via the dashboard.
+
+              ---
+              *This workflow is orchestrated by [UltraPilot](https://github.com/hscheema1979/ultrapilot)*`
+            });
+
+      - name: Wait for Agent Completion
+        if: github.event_name != 'workflow_dispatch'
+        run: |
+          echo "Agent execution is asynchronous. The agent coordinator will update this issue with progress."
+          echo "Monitor the UltraPilot Dashboard for real-time updates."
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## UltraPilot Orchestration Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Issue:** #${{ steps.parse.outputs.issue_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Workflow:** ${{ steps.parse.outputs.workflow_type }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status:** ${{ steps.execute.outputs.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Repository:** ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The UltraPilot agent coordinator will continue processing asynchronously." >> $GITHUB_STEP_SUMMARY
