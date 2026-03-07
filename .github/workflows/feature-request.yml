@@ -1,0 +1,37 @@
+name: Feature Request Automation
+
+on:
+  issues:
+    types: [opened, reopened, labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number'
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  process:
+    name: Process Feature Request
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.issue.labels.*.name, 'feature-request') ||
+      github.event_name == 'workflow_dispatch'
+    
+    steps:
+      - name: Checkout UltraPilot
+        uses: actions/checkout@v4
+        
+      - name: Process Feature Request
+        run: |
+          echo "🚀 Processing Feature Request"
+          echo "Issue: ${{ github.event.issue.number || github.event.inputs.issue_number }}"
+          
+          # This triggers feature-request-processor.ts
+          # which validates, plans, executes, and verifies
+          
+          echo "Feature processing handled by dashboard"

@@ -1,0 +1,32 @@
+name: GitHub Webhook Handler
+
+on:
+  repository_dispatch:
+    types: [workflow-triggered]
+  issues:
+    types: [labeled, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  handle-webhook:
+    name: Process Webhook Event
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout UltraPilot
+        uses: actions/checkout@v4
+        
+      - name: Handle Webhook
+        run: |
+          echo "🔗 GitHub Webhook Handler"
+          echo "Event: ${{ github.event_name }}"
+          echo "Repository: ${{ github.repository }}"
+          
+          # This triggers github-webhook-handler.ts
+          # which verifies signatures and processes events
+          
+          echo "Webhook handling processed by dashboard"

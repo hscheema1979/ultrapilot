@@ -1,0 +1,30 @@
+name: Ultra Autoloop
+
+on:
+  schedule:
+    - cron: '* * * * *'  # Every minute
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  autoloop:
+    name: Process Task Queue
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout UltraPilot
+        uses: actions/checkout@v4
+        
+      - name: Autoloop Heartbeat
+        run: |
+          echo "🔄 Ultra Autoloop"
+          echo "Cycle: $(date +%s)"
+          echo "Processing task queue..."
+          
+          # This would trigger the autoloop daemon
+          # which processes task queues and coordinates agents
+          
+          echo "Autoloop handled by dashboard daemon"

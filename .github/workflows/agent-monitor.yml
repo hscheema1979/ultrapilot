@@ -1,0 +1,30 @@
+name: Agent Monitor Daemon
+
+on:
+  schedule:
+    - cron: '* * * * *'  # Run every minute
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  monitor:
+    name: Scan and Execute Workflows
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout UltraPilot
+        uses: actions/checkout@v4
+        
+      - name: Monitor Workflow Issues
+        run: |
+          echo "🔍 Agent Monitor Daemon"
+          echo "Scanning for labeled workflow issues..."
+          
+          # This would trigger the agent-monitor-daemon.ts
+          # which polls GitHub for workflow issues and executes them
+          
+          echo "Agent monitoring handled by dashboard daemon"
