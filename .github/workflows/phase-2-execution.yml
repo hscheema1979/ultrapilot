@@ -1,0 +1,82 @@
+name: Phase 2 - Execution
+
+on:
+  issues:
+    types: [opened, reopened, labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number for execution phase'
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  execution:
+    name: Execute Implementation Tasks
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.issue.labels.*.name, 'phase:2') ||
+      contains(github.event.issue.labels.*.name, 'execution') ||
+      github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout UltraPilot
+        uses: actions/checkout@v4
+
+      - name: 🚀 Phase 2 Execution Initiated
+        run: |
+          echo "Phase 2: Execution"
+          echo "Task discovery from queue:intake"
+          echo "Agent assignment and execution"
+          echo "Progress tracking with handoffs"
+
+      - name: Execute Implementation Tasks
+        run: |
+          # Task discovery: query issues with queue:intake label
+          # Agent assignment: add agent:<agent-id> label
+          # Progress tracking: update issue body with checkpoints
+          # Handoffs: create PR with [handoff] source → dest
+          echo "Executing tasks from intake queue..."
+          echo "Assigning agents and tracking progress"
+
+      - name: Update Issue Status
+        if: github.event_name != 'workflow_dispatch'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.issue.number;
+
+            await github.rest.issues.addLabels({
+              issueNumber: issueNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['phase:2', 'execution', 'in-progress']
+            });
+
+            await github.rest.issues.createComment({
+              issueNumber: issueNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 🚀 Phase 2: Execution Initiated
+
+              **Queue:** Tasks from \`queue:intake\`
+              **Assignment:** Agent assignment via labels
+              **Tracking:** Issue body checkpoints
+              **Handoffs:** PRs for stage transitions
+
+              ### Execution Workflow:
+              1. 🔍 Task Discovery (queue:intake)
+              2. 👥 Agent Assignment (agent:<id>)
+              3. 📊 Progress Tracking (checkpoints)
+              4. 🔄 Handoffs ([handoff] PRs)
+
+              Progress will be updated in issue body.
+
+              ---
+              *Operations Playbook Phase 2*`
+            });

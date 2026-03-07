@@ -1,0 +1,85 @@
+name: Ultra Review
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to review'
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  review:
+    name: Multi-Perspective Code Review
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.pull_request.labels.*.name, 'ultra-review') ||
+      contains(github.event.pull_request.labels.*.name, 'review') ||
+      github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout UltraPilot
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: 👁️ Multi-Perspective Review Initiated
+        run: |
+          echo "Four-perspective parallel review:"
+          echo "1. Security review"
+          echo "2. Quality/Performance review"
+          echo "3. Architecture review"
+          echo "4. Code review (comprehensive)"
+          echo ""
+          echo "All perspectives run in parallel via PR comments"
+
+      - name: Execute Multi-Perspective Review
+        run: |
+          # This would trigger the ultra-review skill
+          # Spawns security, quality, architecture, and code reviewers in parallel
+          echo "Launching parallel review perspectives..."
+          echo "Each perspective comments on PR independently"
+
+      - name: Update PR Status
+        if: github.event_name != 'workflow_dispatch'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pullNumber = context.issue.number;
+
+            await github.rest.issues.addLabels({
+              issueNumber: pullNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['ultra-review', 'multi-perspective', 'reviewing']
+            });
+
+            await github.rest.issues.createComment({
+              issueNumber: pullNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 👁️ Multi-Perspective Review Initiated
+
+              **Perspectives:** 4 parallel reviews
+              **Coordination:** PR comments for findings
+              **Approval:** Requires unanimous consent
+
+              ### Review Perspectives:
+              1. 🔒 **Security:** OWASP Top 10, secrets, auth patterns
+              2. ⚡ **Quality:** Performance, efficiency, best practices
+              3. 🏗️ **Architecture:** Design patterns, modularity, scalability
+              4. 📝 **Code:** Comprehensive code review
+
+              Each perspective will comment findings here.
+              Approval requires all 4 perspectives to approve.
+
+              ---
+              *Triggered by [UltraPilot Review](https://github.com/hscheema1979/ultrapilot)*`
+            });

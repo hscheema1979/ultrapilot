@@ -1,0 +1,86 @@
+name: Ultra Pipeline
+
+on:
+  issues:
+    types: [opened, reopened, labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number for pipeline execution'
+        required: true
+        type: number
+      pipeline_definition:
+        description: 'Pipeline stages (comma-separated)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  pipeline:
+    name: Sequential Workflow Pipeline
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.issue.labels.*.name, 'ultra-pipeline') ||
+      contains(github.event.issue.labels.*.name, 'pipeline') ||
+      github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout UltraPilot
+        uses: actions/checkout@v4
+
+      - name: 🔗 Pipeline Execution Initiated
+        run: |
+          echo "Sequential workflow pipeline:"
+          echo "Output of stage N = Input of stage N+1"
+          echo ""
+          echo "Stages execute sequentially with handoffs"
+          echo "Different from ultra-ultrawork (parallel) and ultra-ralph (loop)"
+
+      - name: Execute Pipeline Stages
+        run: |
+          # This would trigger the ultra-pipeline skill
+          # Chains agents in sequential or branching workflows
+          echo "Initializing pipeline stages..."
+          echo "Each stage creates an issue for the next stage"
+
+      - name: Update Issue Status
+        if: github.event_name != 'workflow_dispatch'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.issue.number;
+
+            await github.rest.issues.addLabels({
+              issueNumber: issueNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['ultra-pipeline', 'workflow-pipeline', 'in-progress']
+            });
+
+            await github.rest.issues.createComment({
+              issueNumber: issueNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 🔗 Pipeline Execution Initiated
+
+              **Type:** Sequential workflow pipeline
+              **Flow:** Stage N output → Stage N+1 input
+              **Tracking:** GitHub issues = pipeline stages
+
+              ### Pipeline Stages:
+              Each stage creates an issue for the next stage upon completion.
+              Dependencies ensure proper handoff between stages.
+
+              **Difference from other workflows:**
+              - **ultra-ultrawork:** Parallel execution
+              - **ultra-ralph:** Persistent loop
+              - **ultra-pipeline:** Sequential stages with handoffs
+
+              Progress will be tracked across stage issues.
+
+              ---
+              *Triggered by [UltraPilot Pipeline](https://github.com/hscheema1979/ultrapilot)*`
+            });

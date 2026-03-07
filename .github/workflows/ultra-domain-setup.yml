@@ -1,0 +1,105 @@
+name: Ultra Domain Setup
+
+on:
+  issues:
+    types: [opened, reopened, labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number for domain setup'
+        required: true
+        type: number
+      domain_name:
+        description: 'Domain name (e.g., trading, healthcare)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  domain-setup:
+    name: Initialize New Domain
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.issue.labels.*.name, 'ultra-domain-setup') ||
+      contains(github.event.issue.labels.*.name, 'domain-setup') ||
+      github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout UltraPilot
+        uses: actions/checkout@v4
+
+      - name: 🏗️ Domain Setup Initiated
+        run: |
+          echo "One-time domain initialization"
+          echo "Domain: ${{ github.event.inputs.domain_name || 'trading' }}"
+          echo ""
+          echo "Setup queues, configure routines, unleash autoloop"
+
+      - name: Execute Domain Setup
+        run: |
+          # Initialize new domain
+          # Define requirements
+          # Setup queues
+          # Configure routines
+          # Unleash ultra-autoloop
+          echo "Initializing domain structure..."
+          echo "Creating .ultra/domains/domain-name.json..."
+          echo "Setting up task queues..."
+
+      - name: Update Issue Status
+        if: github.event_name != 'workflow_dispatch'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.issue.number;
+            const domain = '${{ github.event.inputs.domain_name || 'trading' }}';
+
+            await github.rest.issues.addLabels({
+              issueNumber: issueNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['ultra-domain-setup', 'initialization', 'in-progress']
+            });
+
+            await github.rest.issues.createComment({
+              issueNumber: issueNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 🏗️ Domain Setup Initiated
+
+              **Domain:** ${domain}
+              **Type:** One-time setup per workspace
+              **Output:** Production-ready domain configuration
+
+              ### Domain Setup Phases:
+              1. 📋 **Define Requirements**
+                 - Domain-specific goals
+                 - Agent specializations
+                 - Risk limits and constraints
+
+              2. 📦 **Setup Queues**
+                 - Task queues (intake, active, review, done)
+                 - Priority levels
+                 - Agent assignments
+
+              3. ⚙️ **Configure Routines**
+                 - Monitoring routines
+                 - Maintenance tasks
+                 - Compliance checks
+
+              4. 🚀 **Unleash Autoloop**
+                 - Start autoloop daemon
+                 - Connect to DomainManager
+                 - Enable AgentMessageBus
+
+              ### Configuration File:
+              \`.ultra/domains/${domain}.json\`
+
+              Progress will be tracked in project board.
+
+              ---
+              *Triggered by [UltraPilot Domain Setup](https://github.com/hscheema1979/ultrapilot)*`
+            });

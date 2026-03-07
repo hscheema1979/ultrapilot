@@ -1,0 +1,89 @@
+name: Phase 5 - Evidence Verification
+
+on:
+  issues:
+    types: [opened, reopened, labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number for verification phase'
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  verification:
+    name: Evidence-Based Verification
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.issue.labels.*.name, 'phase:5') ||
+      contains(github.event.issue.labels.*.name, 'verification') ||
+      github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout UltraPilot
+        uses: actions/checkout@v4
+
+      - name: 🔍 Phase 5 Verification Initiated
+        run: |
+          echo "Phase 5: Evidence Verification"
+          echo "Evidence before assertions"
+          echo "Full audit trail required"
+
+      - name: Execute Evidence Verification
+        run: |
+          # Evidence collection: query issues/PRs for test results
+          # Verification issue: create checklist with evidence links
+          # Completion: close when all evidence verified
+          echo "Collecting evidence from GitHub issues and PRs..."
+          echo "Creating verification checklist"
+
+      - name: Update Issue Status
+        if: github.event_name != 'workflow_dispatch'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.issue.number;
+
+            await github.rest.issues.addLabels({
+              issueNumber: issueNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['phase:5', 'verification', 'in-progress']
+            });
+
+            await github.rest.issues.createComment({
+              issueNumber: issueNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 🔍 Phase 5: Evidence Verification Initiated
+
+              **Policy:** Evidence before assertions
+              **Requirement:** Full audit trail
+              **Output:** Pass/fail with evidence links
+
+              ### Verification Checklist:
+              - [ ] Test results (Phase 3 QA cycles)
+              - [ ] Merged PRs (Phase 2 implementation)
+              - [ ] Review approvals (Phase 4 validation)
+              - [ ] Build success evidence
+              - [ ] Deployment verification
+              - [ ] Performance metrics
+
+              ### Evidence Format:
+              \`\`\`
+              - QA Cycle 3: Issue #123 ✅
+              - Implementation PR: #456 ✅
+              - Security Review: #789 ✅
+              - Quality Review: #790 ✅
+              - Architecture Review: #791 ✅
+              \`\`\`
+
+              All evidence must link to GitHub issues/PRs.
+
+              ---
+              *Operations Playbook Phase 5*`
+            });

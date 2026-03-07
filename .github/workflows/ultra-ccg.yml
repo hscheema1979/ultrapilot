@@ -1,0 +1,81 @@
+name: Ultra CCG
+
+on:
+  issues:
+    types: [opened, reopened, labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number for tri-model orchestration'
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  ccg:
+    name: Claude-Codex-Gemini Tri-Model Orchestration
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.issue.labels.*.name, 'ultra-ccg') ||
+      contains(github.event.issue.labels.*.name, 'ccg') ||
+      contains(github.event.issue.labels.*.name, 'tri-model') ||
+      github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout UltraPilot
+        uses: actions/checkout@v4
+
+      - name: 🤖 Tri-Model Orchestration Initiated
+        run: |
+          echo "Claude-Codex-Gemini Tri-Model Orchestration"
+          echo ""
+          echo "Claude: Synthesis and coordination"
+          echo "Codex: Analytical and backend tasks"
+          echo "Gemini: Design and frontend tasks"
+          echo ""
+          echo "Parallel execution with model attribution tracking"
+
+      - name: Execute Tri-Model Coordination
+        run: |
+          # This would trigger the ultra-ccg skill
+          # Fans out tasks to Claude, Codex, and Gemini in parallel
+          echo "Spawning parallel model tasks..."
+          echo "Claude synthesizes results"
+
+      - name: Update Issue Status
+        if: github.event_name != 'workflow_dispatch'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.issue.number;
+
+            await github.rest.issues.addLabels({
+              issueNumber: issueNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['ultra-ccg', 'tri-model', 'in-progress']
+            });
+
+            await github.rest.issues.createComment({
+              issueNumber: issueNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 🤖 Tri-Model Orchestration Initiated
+
+              **Models:** Claude + Codex + Gemini
+              **Strategy:** Parallel execution with synthesis
+              **Attribution:** Track which model did what
+
+              ### Model Assignments:
+              - **Claude:** Synthesis, coordination, overall architecture
+              - **Codex:** Analytical tasks, backend development
+              - **Gemini:** Design tasks, frontend/UI development
+
+              Results will be aggregated and synthesized by Claude.
+
+              ---
+              *Triggered by [UltraPilot CCG](https://github.com/hscheema1979/ultrapilot)*`
+            });

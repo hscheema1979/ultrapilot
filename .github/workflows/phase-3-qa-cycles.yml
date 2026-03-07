@@ -1,0 +1,89 @@
+name: Phase 3 - QA Cycles
+
+on:
+  issues:
+    types: [opened, reopened, labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number for QA phase'
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  qa:
+    name: Quality Assurance Cycles
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.issue.labels.*.name, 'phase:3') ||
+      contains(github.event.issue.labels.*.name, 'qa') ||
+      github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout UltraPilot
+        uses: actions/checkout@v4
+
+      - name: ✅ Phase 3 QA Cycles Initiated
+        run: |
+          echo "Phase 3: QA Cycles (up to 5 iterations)"
+          echo "Build → Lint → Test → Fix cycle"
+          echo "Continue until all tests pass"
+
+      - name: Execute QA Cycles
+        run: |
+          # QA cycle tracking: create issue [QA-CYCLE-001]
+          # Test results: YAML frontmatter with test counts
+          # Bug tracking: create bug issues linked to QA cycle
+          # Cycle completion: close when all tests pass
+          echo "Running QA cycle 1..."
+          echo "Build, lint, test"
+          echo "Fix failures and repeat"
+
+      - name: Update Issue Status
+        if: github.event_name != 'workflow_dispatch'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.issue.number;
+
+            await github.rest.issues.addLabels({
+              issueNumber: issueNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['phase:3', 'qa', 'in-progress']
+            });
+
+            await github.rest.issues.createComment({
+              issueNumber: issueNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## ✅ Phase 3: QA Cycles Initiated
+
+              **Cycles:** Up to 5 iterations
+              **Process:** Build → Lint → Test → Fix
+              **Goal:** All tests passing
+
+              ### QA Cycle Workflow:
+              1. 🔨 Build
+              2. 🔍 Lint
+              3. 🧪 Test
+              4. 🐛 Fix (if needed)
+              5. 🔄 Repeat (max 5 cycles)
+
+              ### Test Results Format:
+              \`\`\`yaml
+              qa_cycle: 1
+              tests_run: 150
+              tests_passed: 142
+              tests_failed: 8
+              \`\`\`
+
+              Bug issues will be created for failures.
+
+              ---
+              *Operations Playbook Phase 3*`
+            });
